@@ -97,8 +97,10 @@ public class RobotController : MonoBehaviour
         if (Mathf.Abs(deviation) > 0.5f) // Adjust threshold as needed for sensitivity
             steerAngle = -deviation * turnSpeed / sensorRange;
 
+
+
         // Check for obstacles in front and react accordingly
-        if (sensorReadings["Front"].Item1 < obstacleDetectionDistance)
+        if (sensorReadings["Front"].Item1 < obstacleDetectionDistance && !sensorReadings["Front"].Item2.StartsWith("CP"))
         {
             bool leftClear = sensorReadings["Left2"].Item1 > obstacleDetectionDistance;
             bool rightClear = sensorReadings["Right2"].Item1 > obstacleDetectionDistance;
@@ -114,6 +116,7 @@ public class RobotController : MonoBehaviour
         ApplySteering(steerAngle);
         ApplyMotorTorque(moveSpeed);
     }
+
 
     private (float, string) CheckSensor(Transform sensor)
     {
