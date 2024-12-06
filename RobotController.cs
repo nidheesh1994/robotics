@@ -83,20 +83,8 @@ public class RobotController : MonoBehaviour
 
     private void HandleNavigation(Dictionary<string, (float, string)> sensorReadings)
     {
-        float moveSpeed = motorTorque;
+        float moveSpeed = motorTorque; // Default speed
         float steerAngle = 0f;
-
-        // Access the Rigidbody component of the Robot object
-        Rigidbody robotRigidbody = GameObject.Find("Robot")?.GetComponent<Rigidbody>();
-        if (robotRigidbody == null)
-        {
-            Debug.LogError("Rigidbody not found on the Robot object!");
-            return;
-        }
-
-        // Calculate and log the current speed of the Robot
-        float currentSpeed = robotRigidbody.velocity.magnitude;
-        Debug.Log($"Robot Current Speed: {currentSpeed} m/s");
 
         // Check distances to road edges on both sides
         var leftEdge = sensorReadings["Left3"].Item2.StartsWith("ED") ? sensorReadings["Left1"].Item1 : sensorRange;
@@ -119,8 +107,11 @@ public class RobotController : MonoBehaviour
 
         if (isTurningPointDetected)
         {
-            Debug.Log("Turning point detected. Slowing down.");
-            moveSpeed = Mathf.Lerp(moveSpeed, motorTorque / 4f, Time.deltaTime); // Smoothly reduce speed
+            Debug.Log("Turning point detected. Hard braking applied.");
+
+            // Hard brake by reducing speed aggressively
+            moveSpeed = Mathf.Min(moveSpeed - (motorTorque / 5f), motorTorque / 6f); // Gradual but sharp reduction
+            Debug.Log($"Slowing speed calculated: {moveSpeed}");
         }
 
         // Check for obstacles in front and react accordingly
@@ -134,10 +125,10 @@ public class RobotController : MonoBehaviour
             else if (leftClear)
                 steerAngle = isTurningPointDetected ? -turnSpeed * 2 : -turnSpeed; // Turn left
             else
-                moveSpeed = Mathf.Lerp(moveSpeed, motorTorque / 2f, Time.deltaTime); // Smoothly reduce speed further
+                moveSpeed = Mathf.Max(moveSpeed - (motorTorque / 8f), motorTorque / 8f); // Slow down further
         }
 
-        Debug.Log($"Target Speed: {moveSpeed}");
+        Debug.Log($"Target Speed after braking: {moveSpeed}");
 
         ApplySteering(steerAngle);
         ApplyMotorTorque(moveSpeed);
