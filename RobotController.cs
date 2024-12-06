@@ -28,7 +28,7 @@ public class RobotController : MonoBehaviour
 
 
     [Header("Movement Parameters")]
-    public float motorTorque = 2000f;
+    public float motorTorque = 20f;
     public float maxSpeed = 50f;
     public float turnSpeed = 30f;
 
@@ -86,6 +86,18 @@ public class RobotController : MonoBehaviour
         float moveSpeed = motorTorque;
         float steerAngle = 0f;
 
+        // Access the Rigidbody component of the Robot object
+        Rigidbody robotRigidbody = GameObject.Find("Robot")?.GetComponent<Rigidbody>();
+        if (robotRigidbody == null)
+        {
+            Debug.LogError("Rigidbody not found on the Robot object!");
+            return;
+        }
+
+        // Calculate and log the current speed of the Robot
+        float currentSpeed = robotRigidbody.velocity.magnitude;
+        Debug.Log($"Robot Current Speed: {currentSpeed} m/s");
+
         // Check distances to road edges on both sides
         var leftEdge = sensorReadings["Left3"].Item2.StartsWith("ED") ? sensorReadings["Left1"].Item1 : sensorRange;
         var rightEdge = sensorReadings["Right3"].Item2.StartsWith("ED") ? sensorReadings["Right1"].Item1 : sensorRange;
@@ -97,7 +109,19 @@ public class RobotController : MonoBehaviour
         if (Mathf.Abs(deviation) > 0.5f) // Adjust threshold as needed for sensitivity
             steerAngle = -deviation * turnSpeed / sensorRange;
 
+        // Check for turning point using all front sensors except Left3 and Right3
+        bool isTurningPointDetected =
+            sensorReadings["Front"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Left1"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Left2"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Right1"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Right2"].Item2.StartsWith("MT_Turn");
 
+        if (isTurningPointDetected)
+        {
+            Debug.Log("Turning point detected. Slowing down.");
+            moveSpeed = Mathf.Lerp(moveSpeed, motorTorque / 4f, Time.deltaTime); // Smoothly reduce speed
+        }
 
         // Check for obstacles in front and react accordingly
         if (sensorReadings["Front"].Item1 < obstacleDetectionDistance && !sensorReadings["Front"].Item2.StartsWith("CP"))
@@ -106,12 +130,14 @@ public class RobotController : MonoBehaviour
             bool rightClear = sensorReadings["Right2"].Item1 > obstacleDetectionDistance;
 
             if (rightClear)
-                steerAngle = turnSpeed; // Turn right
+                steerAngle = isTurningPointDetected ? turnSpeed * 2 : turnSpeed; // Turn right
             else if (leftClear)
-                steerAngle = -turnSpeed; // Turn left
+                steerAngle = isTurningPointDetected ? -turnSpeed * 2 : -turnSpeed; // Turn left
             else
-                moveSpeed = motorTorque / 2f; // Slow down
+                moveSpeed = Mathf.Lerp(moveSpeed, motorTorque / 2f, Time.deltaTime); // Smoothly reduce speed further
         }
+
+        Debug.Log($"Target Speed: {moveSpeed}");
 
         ApplySteering(steerAngle);
         ApplyMotorTorque(moveSpeed);
