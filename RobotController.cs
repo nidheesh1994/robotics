@@ -205,6 +205,20 @@ public class RobotController : MonoBehaviour
 
         Debug.Log($"Final Target Speed: {moveSpeed}");
 
+        if (moveSpeed > 200f)
+        {
+            // Calculate the difference from 200
+            float speedExcess = moveSpeed - 200f;
+
+            // Scale the reduction (tweak the factor as needed)
+            float reductionFactor = 0.1f; // Adjust this value for sensitivity
+            steerAngle -= speedExcess * reductionFactor;
+
+            // Optionally clamp the steerAngle to avoid excessive reduction
+            steerAngle = Mathf.Clamp(steerAngle, -turnSpeed, turnSpeed); // Replace 'maxSteerAngle' with your max limit
+            Debug.Log($"Adjusted steering angle: {steerAngle}");
+        }
+
         ApplySteering(steerAngle);
         ApplyMotorTorque(moveSpeed);
     }
