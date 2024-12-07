@@ -107,17 +107,17 @@ public class RobotController : MonoBehaviour
         var rightEdge = sensorReadings["Right3"].Item2.StartsWith("ED") || sensorReadings["Right3"].Item2.StartsWith("Plane") ? sensorReadings["Right3"].Item1 : sensorRange;
         float deviation = leftEdge - rightEdge;
 
-        // if (sensorReadings["Left3"].Item2.StartsWith("None") && (sensorReadings["Left1"].Item2.StartsWith("None") || sensorReadings["Left2"].Item2.StartsWith("None")) && (sensorReadings["Right3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Right3"].Item2.StartsWith("MT_Turn")))
-        // {
-        //     deviation = sensorReadings["Right3"].Item1 - sensorRange;
-        //     Debug.Log("Special check1");
-        // }
+        if (sensorReadings["Left3"].Item2.StartsWith("None") && (sensorReadings["Right3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Right3"].Item2.StartsWith("MT_Turn")))
+        {
+            deviation = sensorReadings["Right3"].Item1 - sensorRange;
+            Debug.Log("Special check1");
+        }
 
-        // if (sensorReadings["Right3"].Item2.StartsWith("None") && (sensorReadings["Right1"].Item2.StartsWith("None") || sensorReadings["Right2"].Item2.StartsWith("None")) && (sensorReadings["Left3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Left3"].Item2.StartsWith("MT_Turn")))
-        // {
-        //     deviation = sensorRange - sensorReadings["Left3"].Item1;
-        //     Debug.Log("Special check2");
-        // }
+        if (sensorReadings["Right3"].Item2.StartsWith("None") && (sensorReadings["Left3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Left3"].Item2.StartsWith("MT_Turn")))
+        {
+            deviation = sensorRange - sensorReadings["Left3"].Item1;
+            Debug.Log("Special check2");
+        }
 
         Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
         // Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
@@ -155,26 +155,30 @@ public class RobotController : MonoBehaviour
 
             Debug.Log($"Pitch: {pitch} ");
 
-            if (!isTurningPointDetected)
-            {
 
-                // Adjust speed based on pitch
-                if (pitch <= -2f) // Upward slope, mild to steep
+            // Adjust speed based on pitch
+            if (pitch <= -2f) // Upward slope, mild to steep
+            {
+                if (!isTurningPointDetected || moveSpeed <= 3.5f)
                 {
+
                     Debug.Log($"Uphill detected: Pitch = {pitch}. Increasing torque for acceleration.");
                     Debug.Log($"FrontItem: {sensorReadings["Front"].Item2}");
                     moveSpeed += motorTorque * 20f >= 250f ? 250f : motorTorque * 20f; // Boost acceleration
-
                 }
-                else if (pitch > 2f) // Downward slope, mild to steep
+
+            }
+            else if (pitch > 2f) // Downward slope, mild to steep
+            {
+                if (!isTurningPointDetected)
                 {
                     Debug.Log($"Downhill detected: Pitch = {pitch}. Applying brake.");
-                    moveSpeed -= motorTorque * 2f; // Apply brake by reducing torque
+                    moveSpeed = (moveSpeed - (motorTorque * 2f)) <= 20 ? 20 : (moveSpeed - (motorTorque * 2f)); // Apply brake by reducing torque
                 }
-                else
-                {
-                    Debug.Log($"Flat terrain detected: Pitch = {pitch}. Maintaining default torque.");
-                }
+            }
+            else
+            {
+                Debug.Log($"Flat terrain detected: Pitch = {pitch}. Maintaining default torque.");
             }
         }
 
