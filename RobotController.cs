@@ -29,12 +29,11 @@ public class RobotController : MonoBehaviour
 
     [Header("Movement Parameters")]
     public float motorTorque = 20f;
-    public float maxSpeed = 50f;
     public float turnSpeed = 30f;
 
     [Header("Sensor Parameters")]
     public float sensorRange = 10f;
-    public float obstacleDetectionDistance = 3f;
+    public float obstacleDetectionDistance = 8f;
     public string roadMaterial = "MT_Road_01";
 
     [Header("Performance Tuning")]
