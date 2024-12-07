@@ -77,8 +77,21 @@ public class RobotController : MonoBehaviour
             { "Left3", CheckSensor(L3S) },
             { "Right1", CheckSensor(R1S) },
             { "Right2", CheckSensor(R2S) },
-            { "Right3", CheckSensor(R3S) }
+            { "Right3", CheckSensor(R3S) },
+            { "ORS", CheckOrientationSensor() }
         };
+    }
+
+    private (float, string) CheckOrientationSensor()
+    {
+        // Get the robot's forward-facing angle relative to the world
+        float xaw = transform.eulerAngles.x;
+        Debug.Log($"xaw pitch: {xaw}");
+        // Normalize the pitch
+        float normalizedPitch = (xaw > 180) ? xaw - 360 : xaw;
+
+        // Return the xaw value along with a descriptor
+        return (normalizedPitch, "OrientationX");
     }
 
     private void HandleNavigation(Dictionary<string, (float, string)> sensorReadings)
@@ -86,19 +99,36 @@ public class RobotController : MonoBehaviour
         float moveSpeed = motorTorque; // Default speed
         float steerAngle = 0f;
 
+
+
+
         // Check distances to road edges on both sides
         var leftEdge = sensorReadings["Left3"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("Plane") ? sensorReadings["Left3"].Item1 : sensorRange;
         var rightEdge = sensorReadings["Right3"].Item2.StartsWith("ED") || sensorReadings["Right3"].Item2.StartsWith("Plane") ? sensorReadings["Right3"].Item1 : sensorRange;
         float deviation = leftEdge - rightEdge;
 
+        // if (sensorReadings["Left3"].Item2.StartsWith("None") && (sensorReadings["Left1"].Item2.StartsWith("None") || sensorReadings["Left2"].Item2.StartsWith("None")) && (sensorReadings["Right3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Right3"].Item2.StartsWith("MT_Turn")))
+        // {
+        //     deviation = sensorReadings["Right3"].Item1 - sensorRange;
+        //     Debug.Log("Special check1");
+        // }
+
+        // if (sensorReadings["Right3"].Item2.StartsWith("None") && (sensorReadings["Right1"].Item2.StartsWith("None") || sensorReadings["Right2"].Item2.StartsWith("None")) && (sensorReadings["Left3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Left3"].Item2.StartsWith("MT_Turn")))
+        // {
+        //     deviation = sensorRange - sensorReadings["Left3"].Item1;
+        //     Debug.Log("Special check2");
+        // }
+
         Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
-        Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
-        Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
+        // Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
+        // Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
 
         // Adjust steering angle based on deviation
         if (Mathf.Abs(deviation) > 0.5f) // Adjust threshold as needed for sensitivity
+        {
             steerAngle = -deviation * turnSpeed / sensorRange;
-        Debug.Log($"steerAngle from LS3 and RS3: {steerAngle}");
+            Debug.Log($"steerAngle from LS3 and RS3: {steerAngle}");
+        }
 
         // Check for turning point using all front sensors except Left3 and Right3
         bool isTurningPointDetected =
@@ -110,11 +140,42 @@ public class RobotController : MonoBehaviour
 
         if (isTurningPointDetected)
         {
-            Debug.Log("Turning point detected. Hard braking applied.");
+            // Debug.Log("Turning point detected. Hard braking applied.");
 
             // Hard brake by reducing speed aggressively
             moveSpeed = Mathf.Min(moveSpeed - (motorTorque / 5f), motorTorque / 6f); // Gradual but sharp reduction
-            Debug.Log($"Slowing speed calculated: {moveSpeed}");
+            // Debug.Log($"Slowing speed calculated: {moveSpeed}");
+        }
+
+        // Log ORS orientation sensor reading
+        if (sensorReadings.ContainsKey("ORS"))
+        {
+            var orsReading = sensorReadings["ORS"];
+            float pitch = orsReading.Item1;
+
+            Debug.Log($"Pitch: {pitch} ");
+
+            if (!isTurningPointDetected)
+            {
+
+                // Adjust speed based on pitch
+                if (pitch <= -2f) // Upward slope, mild to steep
+                {
+                    Debug.Log($"Uphill detected: Pitch = {pitch}. Increasing torque for acceleration.");
+                    Debug.Log($"FrontItem: {sensorReadings["Front"].Item2}");
+                    moveSpeed += motorTorque * 20f >= 250f ? 250f : motorTorque * 20f; // Boost acceleration
+
+                }
+                else if (pitch > 2f) // Downward slope, mild to steep
+                {
+                    Debug.Log($"Downhill detected: Pitch = {pitch}. Applying brake.");
+                    moveSpeed -= motorTorque * 2f; // Apply brake by reducing torque
+                }
+                else
+                {
+                    Debug.Log($"Flat terrain detected: Pitch = {pitch}. Maintaining default torque.");
+                }
+            }
         }
 
         // Check for obstacles in front and react accordingly
@@ -139,7 +200,7 @@ public class RobotController : MonoBehaviour
                 moveSpeed = Mathf.Max(moveSpeed - (motorTorque / 8f), motorTorque / 8f); // Slow down further
         }
 
-        Debug.Log($"Target Speed after braking: {moveSpeed}");
+        Debug.Log($"Final Target Speed: {moveSpeed}");
 
         ApplySteering(steerAngle);
         ApplyMotorTorque(moveSpeed);
