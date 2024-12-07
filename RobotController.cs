@@ -58,12 +58,12 @@ public class RobotController : MonoBehaviour
 
     private void SetSensorOrientations()
     {
-        FRS.localRotation = Quaternion.Euler(10, 0, 0);
-        L1S.localRotation = Quaternion.Euler(10, -20, 0);
-        L2S.localRotation = Quaternion.Euler(10, -40, 0);
+        FRS.localRotation = Quaternion.Euler(8, 0, 0);
+        L1S.localRotation = Quaternion.Euler(8, -20, 0);
+        L2S.localRotation = Quaternion.Euler(8, -40, 0);
         L3S.localRotation = Quaternion.Euler(10, -90, 0);
-        R1S.localRotation = Quaternion.Euler(10, 20, 0);
-        R2S.localRotation = Quaternion.Euler(10, 40, 0);
+        R1S.localRotation = Quaternion.Euler(8, 20, 0);
+        R2S.localRotation = Quaternion.Euler(8, 40, 0);
         R3S.localRotation = Quaternion.Euler(10, 90, 0);
     }
 
@@ -87,15 +87,18 @@ public class RobotController : MonoBehaviour
         float steerAngle = 0f;
 
         // Check distances to road edges on both sides
-        var leftEdge = sensorReadings["Left3"].Item2.StartsWith("ED") ? sensorReadings["Left1"].Item1 : sensorRange;
-        var rightEdge = sensorReadings["Right3"].Item2.StartsWith("ED") ? sensorReadings["Right1"].Item1 : sensorRange;
+        var leftEdge = sensorReadings["Left3"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("Plane") ? sensorReadings["Left3"].Item1 : sensorRange;
+        var rightEdge = sensorReadings["Right3"].Item2.StartsWith("ED") || sensorReadings["Right3"].Item2.StartsWith("Plane") ? sensorReadings["Right3"].Item1 : sensorRange;
         float deviation = leftEdge - rightEdge;
 
-        Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, RightEdge: {rightEdge}");
+        Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
+        Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
+        Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
 
         // Adjust steering angle based on deviation
         if (Mathf.Abs(deviation) > 0.5f) // Adjust threshold as needed for sensitivity
             steerAngle = -deviation * turnSpeed / sensorRange;
+        Debug.Log($"steerAngle from LS3 and RS3: {steerAngle}");
 
         // Check for turning point using all front sensors except Left3 and Right3
         bool isTurningPointDetected =
@@ -115,15 +118,23 @@ public class RobotController : MonoBehaviour
         }
 
         // Check for obstacles in front and react accordingly
-        if (sensorReadings["Front"].Item1 < obstacleDetectionDistance && !sensorReadings["Front"].Item2.StartsWith("CP"))
+        if (checkObstacle(sensorReadings, "Front") || checkObstacle(sensorReadings, "Left1") || checkObstacle(sensorReadings, "Left2") || checkObstacle(sensorReadings, "Right1") || checkObstacle(sensorReadings, "Right2"))
         {
-            bool leftClear = sensorReadings["Left2"].Item1 > obstacleDetectionDistance;
-            bool rightClear = sensorReadings["Right2"].Item1 > obstacleDetectionDistance;
+            bool leftClear = sensorReadings["Left2"].Item1 > obstacleDetectionDistance ? sensorReadings["Left1"].Item1 > obstacleDetectionDistance : false;
+            bool rightClear = sensorReadings["Right2"].Item1 > obstacleDetectionDistance ? sensorReadings["Right1"].Item1 > obstacleDetectionDistance : false;
 
             if (rightClear)
-                steerAngle = isTurningPointDetected ? turnSpeed * 2 : turnSpeed; // Turn right
+            {
+                // steerAngle = isTurningPointDetected ? turnSpeed * 10 : turnSpeed; // Turn right
+                steerAngle = turnSpeed;
+                Debug.Log($"steerAngle when rightClear: {steerAngle}");
+            }
             else if (leftClear)
-                steerAngle = isTurningPointDetected ? -turnSpeed * 2 : -turnSpeed; // Turn left
+            {
+                // steerAngle = isTurningPointDetected ? -turnSpeed * 10 : -turnSpeed; // Turn left
+                steerAngle = -turnSpeed;
+                Debug.Log($"steerAngle when leftClear: {steerAngle}");
+            }
             else
                 moveSpeed = Mathf.Max(moveSpeed - (motorTorque / 8f), motorTorque / 8f); // Slow down further
         }
@@ -132,6 +143,11 @@ public class RobotController : MonoBehaviour
 
         ApplySteering(steerAngle);
         ApplyMotorTorque(moveSpeed);
+    }
+
+    private bool checkObstacle(Dictionary<string, (float, string)> sensorReadings, string sensor)
+    {
+        return sensorReadings[sensor].Item1 < obstacleDetectionDistance && !sensorReadings[sensor].Item2.StartsWith("CP") && !sensorReadings[sensor].Item2.StartsWith("MT_Road_01") && !sensorReadings[sensor].Item2.StartsWith("MT_Turn");
     }
 
 
@@ -150,6 +166,7 @@ public class RobotController : MonoBehaviour
     private void ApplySteering(float targetAngle)
     {
         currentSteerAngle = Mathf.Lerp(currentSteerAngle, targetAngle, Time.deltaTime * steeringSmoothing);
+        Debug.Log($"currentSteerAngle: {currentSteerAngle}");
         FLC.steerAngle = currentSteerAngle;
         FRC.steerAngle = currentSteerAngle;
     }
@@ -157,6 +174,7 @@ public class RobotController : MonoBehaviour
     private void ApplyMotorTorque(float targetTorque)
     {
         currentMotorTorque = Mathf.Lerp(currentMotorTorque, targetTorque, Time.deltaTime * accelerationSmoothing);
+        Debug.Log($"currentMotorTorque: {currentMotorTorque}");
         FLC.motorTorque = currentMotorTorque;
         FRC.motorTorque = currentMotorTorque;
         RLC.motorTorque = currentMotorTorque;
