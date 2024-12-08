@@ -109,13 +109,13 @@ public class RobotController : MonoBehaviour
         if (sensorReadings["Left3"].Item2.StartsWith("None") && (sensorReadings["Right3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Right3"].Item2.StartsWith("MT_Turn")))
         {
             deviation = sensorReadings["Right3"].Item1 - sensorRange;
-            Debug.Log("Special check1");
+            // Debug.Log("Special check1");
         }
 
         if (sensorReadings["Right3"].Item2.StartsWith("None") && (sensorReadings["Left3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Left3"].Item2.StartsWith("MT_Turn")))
         {
             deviation = sensorRange - sensorReadings["Left3"].Item1;
-            Debug.Log("Special check2");
+            // Debug.Log("Special check2");
         }
 
         Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
@@ -152,7 +152,7 @@ public class RobotController : MonoBehaviour
             var orsReading = sensorReadings["ORS"];
             float pitch = orsReading.Item1;
 
-            Debug.Log($"Pitch: {pitch} ");
+            // Debug.Log($"Pitch: {pitch} ");
 
 
             // Adjust speed based on pitch
@@ -161,8 +161,8 @@ public class RobotController : MonoBehaviour
                 if (!isTurningPointDetected || moveSpeed <= 3.5f)
                 {
 
-                    Debug.Log($"Uphill detected: Pitch = {pitch}. Increasing torque for acceleration.");
-                    Debug.Log($"FrontItem: {sensorReadings["Front"].Item2}");
+                    // Debug.Log($"Uphill detected: Pitch = {pitch}. Increasing torque for acceleration.");
+                    // Debug.Log($"FrontItem: {sensorReadings["Front"].Item2}");
                     moveSpeed += motorTorque * 20f >= 250f ? 250f : motorTorque * 20f; // Boost acceleration
                 }
 
@@ -171,13 +171,13 @@ public class RobotController : MonoBehaviour
             {
                 if (!isTurningPointDetected)
                 {
-                    Debug.Log($"Downhill detected: Pitch = {pitch}. Applying brake.");
+                    // Debug.Log($"Downhill detected: Pitch = {pitch}. Applying brake.");
                     moveSpeed = (moveSpeed - (motorTorque * 2f)) <= 20 ? 20 : (moveSpeed - (motorTorque * 2f)); // Apply brake by reducing torque
                 }
             }
             else
             {
-                Debug.Log($"Flat terrain detected: Pitch = {pitch}. Maintaining default torque.");
+                // Debug.Log($"Flat terrain detected: Pitch = {pitch}. Maintaining default torque.");
             }
         }
 
