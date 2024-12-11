@@ -29,6 +29,8 @@ public class RobotController : MonoBehaviour
 
     [Header("Movement Parameters")]
     public float motorTorque = 20f;
+
+    public float brakeTorque = 20f;
     public float turnSpeed = 30f;
 
     [Header("Sensor Parameters")]
@@ -37,11 +39,18 @@ public class RobotController : MonoBehaviour
     public string roadMaterial = "MT_Road_01";
 
     [Header("Performance Tuning")]
+    public float finalBrakeForce = -250f;
     public float steeringSmoothing = 5f;
     public float accelerationSmoothing = 2f;
 
+    public float decelerationSmoothing = 0.8f;
+
     private float currentSteerAngle = 0f;
     private float currentMotorTorque = 0f;
+
+    private float currentBrakeTorque = 0f;
+
+    private bool finishingPointDetected = false;
 
     private void Start()
     {
@@ -216,11 +225,109 @@ public class RobotController : MonoBehaviour
 
             // Optionally clamp the steerAngle to avoid excessive reduction
             steerAngle = Mathf.Clamp(steerAngle, -turnSpeed, turnSpeed); // Replace 'maxSteerAngle' with your max limit
-            Debug.Log($"Adjusted steering angle: {steerAngle}");
+            // Debug.Log($"Adjusted steering angle: {steerAngle}");
         }
+
+        if (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED"))
+        {
+            bool isFrontEmpty = sensorReadings["Left2"].Item2.StartsWith("None") &&
+                sensorReadings["Left1"].Item2.StartsWith("None") &&
+                sensorReadings["Right1"].Item2.StartsWith("None") &&
+                sensorReadings["Front"].Item2.StartsWith("None") &&
+                sensorReadings["Right2"].Item2.StartsWith("None");
+
+            if (isFrontEmpty)
+            {
+                // Get the current speed of the car
+                float currentSpeed = moveSpeed; // Assume moveSpeed holds the current speed in units/second
+
+                // Calculate the required deceleration to stop in 2 seconds
+                float deceleration = currentSpeed / 2f;
+
+                // Apply braking force
+                moveSpeed -= deceleration * Time.deltaTime;
+
+                // Ensure speed doesn't go negative
+                moveSpeed = -Mathf.Max(moveSpeed, 0f);
+
+
+                ApplyBrakeTorque(brakeTorque);
+            }
+
+        }
+        else
+        {
+            ApplyBrakeTorque(0f);
+        }
+
+
+        if (!finishingPointDetected)
+        {
+            finishingPointDetected = checkFinishingPoint(sensorReadings);
+        }
+        else
+        {
+            // Get the rpm for each wheel
+            float flcRpm = FLC.rpm; // Front Left Wheel RPM
+            float frcRpm = FRC.rpm; // Front Right Wheel RPM
+            float rlcRpm = RLC.rpm; // Rear Left Wheel RPM
+            float rrcRpm = RRC.rpm; // Rear Right Wheel RPM
+
+            // Check if the wheel is still moving (RPM > 0 means it's rotating)
+            if (flcRpm > 0.1f || frcRpm > 0.1f || rlcRpm > 0.1f || rrcRpm > 0.1f)
+            {
+                //Applying hard breaking
+                moveSpeed = finalBrakeForce;
+                ApplyBrakeTorque(1000f);
+                ApplyMotorTorque(finalBrakeForce);
+            }
+            else
+            {
+                moveSpeed = 0f;
+                ApplyBrakeTorque(1000f);
+                ApplyMotorTorque(moveSpeed);
+            }
+
+        }
+
+        // Access forward friction
+        // WheelFrictionCurve forwardFriction = FLC.forwardFriction;
+        // Debug.Log($"Friction: {forwardFriction.stiffness}");
+
 
         ApplySteering(steerAngle);
         ApplyMotorTorque(moveSpeed);
+    }
+
+    private bool checkFinishingPoint(Dictionary<string, (float, string)> sensorReadings)
+    {
+        return sensorReadings["Left3"].Item2.StartsWith("CP22") || sensorReadings["Right3"].Item2.StartsWith("CP22");
+        // sensorReadings["Left2"].Item2.StartsWith("CP1") ||
+        // sensorReadings["Right1"].Item2.StartsWith("CP1") ||
+        // sensorReadings["Right2"].Item2.StartsWith("CP1") ||
+        // sensorReadings["Front"].Item2.StartsWith("CP1");
+    }
+
+    void Update()
+    {
+        // Check if the space key is pressed
+        // if (Input.GetKey(KeyCode.Space))
+        // {
+        //     // Get the current speed of the car
+        //     float currentSpeed = moveSpeed; // Assume moveSpeed holds the current speed in units/second
+
+        //     // Calculate the required deceleration to stop in 2 seconds
+        //     float deceleration = currentSpeed / 2f;
+
+        //     // Apply braking force
+        //     moveSpeed -= deceleration * Time.deltaTime;
+
+        //     // Ensure speed doesn't go negative
+        //     moveSpeed = Mathf.Max(moveSpeed, 0f);
+
+        //     // Optionally, log the braking process for debugging
+        //     Debug.Log("Hard braking applied. Current speed: " + moveSpeed);
+        // }
     }
 
     private bool checkObstacle(Dictionary<string, (float, string)> sensorReadings, string sensor)
@@ -234,10 +341,10 @@ public class RobotController : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(sensor.position, sensor.forward, out hit, sensorRange))
         {
-            Debug.DrawLine(sensor.position, hit.point, Color.red);
+            // Debug.DrawLine(sensor.position, hit.point, Color.red);
             return (hit.distance, hit.collider.gameObject.name);
         }
-        Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
+        // Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
         return (sensorRange, "None");
     }
 
@@ -252,11 +359,23 @@ public class RobotController : MonoBehaviour
     private void ApplyMotorTorque(float targetTorque)
     {
         currentMotorTorque = Mathf.Lerp(currentMotorTorque, targetTorque, Time.deltaTime * accelerationSmoothing);
+        if (finishingPointDetected && targetTorque == 0f)
+            currentMotorTorque = 0;
         Debug.Log($"currentMotorTorque: {currentMotorTorque}");
         FLC.motorTorque = currentMotorTorque;
         FRC.motorTorque = currentMotorTorque;
         RLC.motorTorque = currentMotorTorque;
         RRC.motorTorque = currentMotorTorque;
+    }
+
+    private void ApplyBrakeTorque(float targetTorque)
+    {
+        currentBrakeTorque = Mathf.Lerp(currentBrakeTorque, targetTorque, Time.deltaTime * decelerationSmoothing);
+        Debug.Log($"currentBrakeTorque: {currentBrakeTorque}");
+        FLC.motorTorque = currentBrakeTorque;
+        FRC.motorTorque = currentBrakeTorque;
+        RLC.motorTorque = currentBrakeTorque;
+        RRC.motorTorque = currentBrakeTorque;
     }
 
     private void UpdateWheelTransforms()
