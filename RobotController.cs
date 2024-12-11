@@ -35,15 +35,15 @@ public class RobotController : MonoBehaviour
 
     [Header("Sensor Parameters")]
     public float sensorRange = 10f;
-    public float obstacleDetectionDistance = 8f;
+    public float obstacleDetectionDistance = 7f;
     public string roadMaterial = "MT_Road_01";
 
     [Header("Performance Tuning")]
-    public float finalBrakeForce = -250f;
+    public float finalBrakeForce = -160f;
     public float steeringSmoothing = 5f;
     public float accelerationSmoothing = 2f;
 
-    public float decelerationSmoothing = 0.8f;
+    public float decelerationSmoothing = 10f;
 
     private float currentSteerAngle = 0f;
     private float currentMotorTorque = 0f;
@@ -62,6 +62,7 @@ public class RobotController : MonoBehaviour
         var sensorReadings = GetSensorData();
         HandleNavigation(sensorReadings);
         UpdateWheelTransforms();
+        Debug.Log("Time");
     }
 
     private void SetSensorOrientations()
@@ -94,7 +95,7 @@ public class RobotController : MonoBehaviour
     {
         // Get the robot's forward-facing angle relative to the world
         float xaw = transform.eulerAngles.x;
-        Debug.Log($"xaw pitch: {xaw}");
+        // Debug.Log($"xaw pitch: {xaw}");
         // Normalize the pitch
         float normalizedPitch = (xaw > 180) ? xaw - 360 : xaw;
 
@@ -118,24 +119,29 @@ public class RobotController : MonoBehaviour
         if (sensorReadings["Left3"].Item2.StartsWith("None") && (sensorReadings["Right3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Right3"].Item2.StartsWith("MT_Turn")))
         {
             deviation = sensorReadings["Right3"].Item1 - sensorRange;
-            // Debug.Log("Special check1");
+            // // Debug.Log("Special check1");
         }
 
         if (sensorReadings["Right3"].Item2.StartsWith("None") && (sensorReadings["Left3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Left3"].Item2.StartsWith("MT_Turn")))
         {
             deviation = sensorRange - sensorReadings["Left3"].Item1;
-            // Debug.Log("Special check2");
+            // // Debug.Log("Special check2");
         }
 
-        Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
-        // Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
-        // Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
+        if (sensorReadings["Right3"].Item2.StartsWith("Cube") || sensorReadings["Left3"].Item2.StartsWith("Cube"))
+        {
+            deviation = 0;
+        }
+
+        // Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
+        // // Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
+        // // Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
 
         // Adjust steering angle based on deviation
         if (Mathf.Abs(deviation) > 0.5f) // Adjust threshold as needed for sensitivity
         {
             steerAngle = -deviation * turnSpeed / sensorRange;
-            Debug.Log($"steerAngle from LS3 and RS3: {steerAngle}");
+            // Debug.Log($"steerAngle from LS3 and RS3: {steerAngle}");
         }
 
         // Check for turning point using all front sensors except Left3 and Right3
@@ -148,11 +154,11 @@ public class RobotController : MonoBehaviour
 
         if (isTurningPointDetected)
         {
-            // Debug.Log("Turning point detected. Hard braking applied.");
+            // // Debug.Log("Turning point detected. Hard braking applied.");
 
             // Hard brake by reducing speed aggressively
             moveSpeed = Mathf.Min(moveSpeed - (motorTorque / 5f), motorTorque / 6f); // Gradual but sharp reduction
-            // Debug.Log($"Slowing speed calculated: {moveSpeed}");
+            // // Debug.Log($"Slowing speed calculated: {moveSpeed}");
         }
 
         // Log ORS orientation sensor reading
@@ -161,7 +167,7 @@ public class RobotController : MonoBehaviour
             var orsReading = sensorReadings["ORS"];
             float pitch = orsReading.Item1;
 
-            // Debug.Log($"Pitch: {pitch} ");
+            // // Debug.Log($"Pitch: {pitch} ");
 
 
             // Adjust speed based on pitch
@@ -170,8 +176,8 @@ public class RobotController : MonoBehaviour
                 if (!isTurningPointDetected || moveSpeed <= 3.5f)
                 {
 
-                    // Debug.Log($"Uphill detected: Pitch = {pitch}. Increasing torque for acceleration.");
-                    // Debug.Log($"FrontItem: {sensorReadings["Front"].Item2}");
+                    // // Debug.Log($"Uphill detected: Pitch = {pitch}. Increasing torque for acceleration.");
+                    // // Debug.Log($"FrontItem: {sensorReadings["Front"].Item2}");
                     moveSpeed += motorTorque * 20f >= 250f ? 250f : motorTorque * 20f; // Boost acceleration
                 }
 
@@ -180,39 +186,63 @@ public class RobotController : MonoBehaviour
             {
                 if (!isTurningPointDetected)
                 {
-                    // Debug.Log($"Downhill detected: Pitch = {pitch}. Applying brake.");
+                    // // Debug.Log($"Downhill detected: Pitch = {pitch}. Applying brake.");
                     moveSpeed = (moveSpeed - (motorTorque * 2f)) <= 20 ? 20 : (moveSpeed - (motorTorque * 2f)); // Apply brake by reducing torque
                 }
             }
             else
             {
-                // Debug.Log($"Flat terrain detected: Pitch = {pitch}. Maintaining default torque.");
+                // // Debug.Log($"Flat terrain detected: Pitch = {pitch}. Maintaining default torque.");
             }
         }
 
         // Check for obstacles in front and react accordingly
         if (checkObstacle(sensorReadings, "Front") || checkObstacle(sensorReadings, "Left1") || checkObstacle(sensorReadings, "Left2") || checkObstacle(sensorReadings, "Right1") || checkObstacle(sensorReadings, "Right2"))
         {
+            // Debug.Log("Obstacle detected");
             bool leftClear = sensorReadings["Left2"].Item1 > obstacleDetectionDistance ? sensorReadings["Left1"].Item1 > obstacleDetectionDistance : false;
             bool rightClear = sensorReadings["Right2"].Item1 > obstacleDetectionDistance ? sensorReadings["Right1"].Item1 > obstacleDetectionDistance : false;
 
             if (rightClear)
             {
                 // steerAngle = isTurningPointDetected ? turnSpeed * 10 : turnSpeed; // Turn right
-                steerAngle = turnSpeed;
-                Debug.Log($"steerAngle when rightClear: {steerAngle}");
+                if (sensorReadings["Left2"].Item2.StartsWith("Cube") && sensorReadings["Left2"].Item1 < obstacleDetectionDistance - 6 && sensorReadings["Left1"].Item1 > obstacleDetectionDistance)
+                {
+
+                    steerAngle = turnSpeed - 25;
+                    // Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
+                }
+                else if (sensorReadings["Left1"].Item2.StartsWith("Cube") && sensorReadings["Left1"].Item1 < obstacleDetectionDistance - 3)
+                {
+                    steerAngle = turnSpeed - 15;
+                    // Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
+                }
+                else if(!sensorReadings["Left1"].Item2.StartsWith("Cube") && !sensorReadings["Left2"].Item2.StartsWith("Cube"))
+                {
+
+                    steerAngle = turnSpeed - 5;
+                    // Debug.Log($"Other object detected. turnspeed: {steerAngle}");
+                }
+
+                // Debug.Log($"steerAngle when rightClear: {steerAngle}");
             }
             else if (leftClear)
             {
                 // steerAngle = isTurningPointDetected ? -turnSpeed * 10 : -turnSpeed; // Turn left
-                steerAngle = -turnSpeed;
-                Debug.Log($"steerAngle when leftClear: {steerAngle}");
+                if (sensorReadings["Right2"].Item2.StartsWith("Cube") && sensorReadings["Right2"].Item1 < obstacleDetectionDistance - 6 && sensorReadings["Right1"].Item1 > obstacleDetectionDistance)
+                    steerAngle = -turnSpeed + 25;
+                else if (sensorReadings["Right1"].Item2.StartsWith("Cube") && sensorReadings["Right1"].Item1 < obstacleDetectionDistance - 3)
+                    steerAngle = -turnSpeed + 15;
+                else if(!sensorReadings["Right1"].Item2.StartsWith("Cube") && !sensorReadings["Right2"].Item2.StartsWith("Cube"))
+                    steerAngle = -turnSpeed + 5;
+
+                // Debug.Log($"steerAngle when leftClear: {steerAngle}");
             }
             else
                 moveSpeed = Mathf.Max(moveSpeed - (motorTorque / 8f), motorTorque / 8f); // Slow down further
         }
 
-        Debug.Log($"Final Target Speed: {moveSpeed}");
+        // Debug.Log($"Final Target Speed: {moveSpeed}");
 
         if (moveSpeed > 200f)
         {
@@ -224,8 +254,8 @@ public class RobotController : MonoBehaviour
             steerAngle -= speedExcess * reductionFactor;
 
             // Optionally clamp the steerAngle to avoid excessive reduction
-            steerAngle = Mathf.Clamp(steerAngle, -turnSpeed, turnSpeed); // Replace 'maxSteerAngle' with your max limit
-            // Debug.Log($"Adjusted steering angle: {steerAngle}");
+            steerAngle = Mathf.Clamp(steerAngle, -turnSpeed + 5, turnSpeed - 5); // Replace 'maxSteerAngle' with your max limit
+            // // Debug.Log($"Adjusted steering angle: {steerAngle}");
         }
 
         if (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED"))
@@ -292,7 +322,7 @@ public class RobotController : MonoBehaviour
 
         // Access forward friction
         // WheelFrictionCurve forwardFriction = FLC.forwardFriction;
-        // Debug.Log($"Friction: {forwardFriction.stiffness}");
+        // // Debug.Log($"Friction: {forwardFriction.stiffness}");
 
 
         ApplySteering(steerAngle);
@@ -308,28 +338,6 @@ public class RobotController : MonoBehaviour
         // sensorReadings["Front"].Item2.StartsWith("CP1");
     }
 
-    void Update()
-    {
-        // Check if the space key is pressed
-        // if (Input.GetKey(KeyCode.Space))
-        // {
-        //     // Get the current speed of the car
-        //     float currentSpeed = moveSpeed; // Assume moveSpeed holds the current speed in units/second
-
-        //     // Calculate the required deceleration to stop in 2 seconds
-        //     float deceleration = currentSpeed / 2f;
-
-        //     // Apply braking force
-        //     moveSpeed -= deceleration * Time.deltaTime;
-
-        //     // Ensure speed doesn't go negative
-        //     moveSpeed = Mathf.Max(moveSpeed, 0f);
-
-        //     // Optionally, log the braking process for debugging
-        //     Debug.Log("Hard braking applied. Current speed: " + moveSpeed);
-        // }
-    }
-
     private bool checkObstacle(Dictionary<string, (float, string)> sensorReadings, string sensor)
     {
         return sensorReadings[sensor].Item1 < obstacleDetectionDistance && !sensorReadings[sensor].Item2.StartsWith("CP") && !sensorReadings[sensor].Item2.StartsWith("MT_Road_01") && !sensorReadings[sensor].Item2.StartsWith("MT_Turn");
@@ -341,17 +349,17 @@ public class RobotController : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(sensor.position, sensor.forward, out hit, sensorRange))
         {
-            // Debug.DrawLine(sensor.position, hit.point, Color.red);
+            Debug.DrawLine(sensor.position, hit.point, Color.red);
             return (hit.distance, hit.collider.gameObject.name);
         }
-        // Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
+        Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
         return (sensorRange, "None");
     }
 
     private void ApplySteering(float targetAngle)
     {
         currentSteerAngle = Mathf.Lerp(currentSteerAngle, targetAngle, Time.deltaTime * steeringSmoothing);
-        Debug.Log($"currentSteerAngle: {currentSteerAngle}");
+        // Debug.Log($"currentSteerAngle: {currentSteerAngle}");
         FLC.steerAngle = currentSteerAngle;
         FRC.steerAngle = currentSteerAngle;
     }
@@ -361,7 +369,7 @@ public class RobotController : MonoBehaviour
         currentMotorTorque = Mathf.Lerp(currentMotorTorque, targetTorque, Time.deltaTime * accelerationSmoothing);
         if (finishingPointDetected && targetTorque == 0f)
             currentMotorTorque = 0;
-        Debug.Log($"currentMotorTorque: {currentMotorTorque}");
+        // Debug.Log($"currentMotorTorque: {currentMotorTorque}");
         FLC.motorTorque = currentMotorTorque;
         FRC.motorTorque = currentMotorTorque;
         RLC.motorTorque = currentMotorTorque;
@@ -371,7 +379,7 @@ public class RobotController : MonoBehaviour
     private void ApplyBrakeTorque(float targetTorque)
     {
         currentBrakeTorque = Mathf.Lerp(currentBrakeTorque, targetTorque, Time.deltaTime * decelerationSmoothing);
-        Debug.Log($"currentBrakeTorque: {currentBrakeTorque}");
+        // Debug.Log($"currentBrakeTorque: {currentBrakeTorque}");
         FLC.motorTorque = currentBrakeTorque;
         FRC.motorTorque = currentBrakeTorque;
         RLC.motorTorque = currentBrakeTorque;
