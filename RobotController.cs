@@ -39,7 +39,7 @@ public class RobotController : MonoBehaviour
     public string roadMaterial = "MT_Road_01";
 
     [Header("Performance Tuning")]
-    public float finalBrakeForce = -160f;
+    public float finalBrakeForce = -140f;
     public float steeringSmoothing = 5f;
     public float accelerationSmoothing = 2f;
 
@@ -349,10 +349,10 @@ public class RobotController : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(sensor.position, sensor.forward, out hit, sensorRange))
         {
-            Debug.DrawLine(sensor.position, hit.point, Color.red);
+            // Debug.DrawLine(sensor.position, hit.point, Color.red);
             return (hit.distance, hit.collider.gameObject.name);
         }
-        Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
+        // Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
         return (sensorRange, "None");
     }
 
