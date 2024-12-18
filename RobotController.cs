@@ -52,7 +52,6 @@ public class RobotController : MonoBehaviour
     private void FixedUpdate()
     {
         var sensorReadings = GetSensorData();
-        HandleNavigation(sensorReadings);
         UpdateWheelTransforms();
     }
 
@@ -81,39 +80,7 @@ public class RobotController : MonoBehaviour
         };
     }
 
-    private void HandleNavigation(Dictionary<string, (float, string)> sensorReadings)
-    {
-        float moveSpeed = motorTorque;
-        float steerAngle = 0f;
-
-        // Check distances to road edges on both sides
-        var leftEdge = sensorReadings["Left3"].Item2.StartsWith("ED") ? sensorReadings["Left1"].Item1 : sensorRange;
-        var rightEdge = sensorReadings["Right3"].Item2.StartsWith("ED") ? sensorReadings["Right1"].Item1 : sensorRange;
-        float deviation = leftEdge - rightEdge;
-
-        Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, RightEdge: {rightEdge}");
-
-        // Adjust steering angle based on deviation
-        if (Mathf.Abs(deviation) > 0.5f) // Adjust threshold as needed for sensitivity
-            steerAngle = -deviation * turnSpeed / sensorRange;
-
-        // Check for obstacles in front and react accordingly
-        if (sensorReadings["Front"].Item1 < obstacleDetectionDistance)
-        {
-            bool leftClear = sensorReadings["Left2"].Item1 > obstacleDetectionDistance;
-            bool rightClear = sensorReadings["Right2"].Item1 > obstacleDetectionDistance;
-
-            if (rightClear)
-                steerAngle = turnSpeed; // Turn right
-            else if (leftClear)
-                steerAngle = -turnSpeed; // Turn left
-            else
-                moveSpeed = motorTorque / 2f; // Slow down
-        }
-
-        ApplySteering(steerAngle);
-        ApplyMotorTorque(moveSpeed);
-    }
+    
 
     private (float, string) CheckSensor(Transform sensor)
     {
