@@ -47,8 +47,14 @@ public class RobotController : Agent
     private float currentSteerAngle = 0f;
     private float currentMotorTorque = 0f;
 
+    private float episodeTime = 0f; // Track the elapsed time since the episode started
+    private const float maxEpisodeTime = 120f; // Max episode time in seconds (120 seconds)
+
     public override void OnEpisodeBegin()
     {
+        // Reset the episode timer at the beginning of each episode
+        episodeTime = 0f;
+
         // Stop the robot's velocity and angular velocity to prevent movement at the start
         Rigidbody rb = GetComponent<Rigidbody>();
         rb.linearVelocity = Vector3.zero;
@@ -65,48 +71,66 @@ public class RobotController : Agent
         FRC.steerAngle = 0f;
 
         // Reset robot position and rotation as you have it in your current code
-        transform.position = new Vector3(195.6539f, 0.6679955f, 192.1293f);
+        transform.localPosition = new Vector3(195.6539f, 0.6679955f, 192.1293f);
         transform.rotation = Quaternion.Euler(0f, 180f, 0f);
 
         // Set sensor orientations as defined
         SetSensorOrientations();
 
-        Debug.Log("Episode has started");
+        // Debug.Log("Episode has started");
     }
 
-    // public override void Heuristic(in ActionBuffers actionOut) {
-    //     ActionSegment<float> continuousActions = actionOut.ContinuousActions;
-    //     continuousActions[0] = Input.GetAxisRaw("Vertical") * 20;
-    //     continuousActions[1] = Input.GetAxisRaw("Horizontal") * 15;
-    // }
+    public override void Heuristic(in ActionBuffers actionOut)
+    {
+        ActionSegment<float> continuousActions = actionOut.ContinuousActions;
+        continuousActions[0] = Input.GetAxisRaw("Vertical") * 1;
+        continuousActions[1] = Input.GetAxisRaw("Horizontal") * 15;
+    }
 
     public override void OnActionReceived(ActionBuffers actions)
     {
-        float motorTorque = actions.ContinuousActions[0];
-        float steeringAngle = actions.ContinuousActions[1];
+        // Update the elapsed time
+        episodeTime += Time.deltaTime;
 
-        Debug.Log($"motorTorque: {motorTorque}, steeringAngle: {steeringAngle}");
-        ApplySteering(steeringAngle * 30f);
-        ApplyMotorTorque(motorTorque * 250);
+        // Debug.Log($"Episode time : {episodeTime}");
+
+        // Check if the episode has exceeded the maximum time (120 seconds)
+        if (episodeTime > maxEpisodeTime)
+        {
+            // End the episode after 120 seconds
+            AddReward(-0.5f); // Optional: add some reward/penalty for time limit reached
+            // Debug.Log("Max time passed ending");
+            Debug.Log("EndEpisode: Timeout");
+            EndEpisode();
+        }
+
+        float motorTorque = actions.ContinuousActions[0] * 200f;
+        float steeringAngle = actions.ContinuousActions[1] * 30f;
+
+        // Debug.Log($"motorTorque: {motorTorque}, steeringAngle: {steeringAngle}");
+        ApplySteering(steeringAngle);
+        ApplyMotorTorque(motorTorque);
 
         UpdateWheelTransforms();
 
         // Reward or penalty based on track conditions
-        HandleTrackRewards();
+        HandleTrackRewards(motorTorque, steeringAngle);
     }
 
-    private void HandleTrackRewards()
+    private void HandleTrackRewards(float motorTorque, float steeringAngle)
     {
         // Reward for moving forward on the road
         float speed = Vector3.Dot(transform.forward, GetComponent<Rigidbody>().linearVelocity);
-        Debug.Log($"Speed: {speed}");
-        if (speed > 0)
+        // Debug.Log($"Speed: {speed}");
+        if (speed > 0f)
         {
-            AddReward(0.1f); // Reward for moving forward
+            if (speed > 0.5f)
+                AddReward(0.1f); // Reward for moving forward
         }
         else
         {
             AddReward(-0.1f); // Penalty for moving backward
+            Debug.Log("EndEpisode: Reversed");
             EndEpisode();
         }
 
@@ -118,16 +142,61 @@ public class RobotController : Agent
             float distance = sensorReading.Value.Item1;
             string hitObject = sensorReading.Value.Item2;
 
-            if (hitObject.Contains("Cube") && distance < obstacleDetectionDistance)
+            if (hitObject.Contains("Cube") && distance < obstacleDetectionDistance - 5.5f)
             {
-                AddReward(-0.2f); // Penalty for hitting an obstacle
-                EndEpisode();
+                if (sensorName != "Left3" && sensorName != "Right3")
+                {
+                    AddReward(-0.2f); // Penalty for hitting an obstacle
+                    Debug.Log("EndEpisode: obstacle hit");
+                    EndEpisode();
+                }
+                else
+                {
+                    if(distance > 1.0f)
+                        AddReward(0.05f); // Bonus for avoiding obstacles
+                }
+
             }
-            else if (distance < sensorRange)
-            {
-                AddReward(0.05f); // Bonus for avoiding obstacles
-            }
+
         }
+
+        bool flat = false;
+
+        Debug.Log($"Motor torque : {motorTorque}, steering angle: {steeringAngle}");
+        if (sensorReadings["ORS"].Item1 < 2f && sensorReadings["ORS"].Item1 > -2f)
+        {
+            if (motorTorque <= 20f && motorTorque >= 3f)
+            {
+                AddReward(0.8f);
+                Debug.Log("Reward 0.8 added");
+            }
+            else
+            {
+                AddReward(-0.1f);
+            }
+
+            flat = true;
+        }
+
+        // Debug.Log($"Left3 distance : {sensorReadings["Left3"].Item1}, object : {sensorReadings["Left3"].Item2}");
+        if (sensorReadings["Left3"].Item2.StartsWith("ED") && (sensorReadings["Left3"].Item1 < 2.0f))
+        {
+            // Debug.Log($"Left3 distance inside : {sensorReadings["Left3"].Item1}");
+            AddReward(-0.2f);
+        }
+
+        // Debug.Log($"Right3 distance : {sensorReadings["Right3"].Item1}, object : {sensorReadings["Right3"].Item2}");
+        if (sensorReadings["Right3"].Item2.StartsWith("ED") && (sensorReadings["Right3"].Item1 < 2.0f))
+        {
+            // Debug.Log($"Right3 distance inside : {sensorReadings["Right3"].Item1}");
+            AddReward(-0.2f);
+        }
+
+        if (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED"))
+            AddReward(0.05f);
+        float deviation = sensorReadings["Left3"].Item1 - sensorReadings["Right3"].Item1;
+        if (Mathf.Abs(deviation) < 0.5f)
+            AddReward(0.1f);
 
         // Check if the robot passed a checkpoint
         for (int i = 1; i <= 22; i++)
@@ -144,6 +213,8 @@ public class RobotController : Agent
         if (HasPassedFinalCheckpoint() && IsStopped())
         {
             AddReward(1f); // Final bonus for stopping after passing CP22
+
+            Debug.Log("EndEpisode: successfully completed");
             EndEpisode();
 
         }
@@ -152,8 +223,12 @@ public class RobotController : Agent
         if (IsOutOfTrack())
         {
             AddReward(-1f); // Penalty for going off track
+            if (flat)
+                AddReward(-0.5f);
+
+            Debug.Log("EndEpisode: out of track");
             EndEpisode(); // End the episode if out of the track
-            Debug.Log("Called end episode");
+            // Debug.Log("Called end episode");
         }
     }
 
@@ -166,12 +241,17 @@ public class RobotController : Agent
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, 2f); // Adjust radius as necessary
         foreach (var collider in hitColliders)
         {
+            // Debug.Log($"collider object: {collider.gameObject.name}");
 
-            if (collider.gameObject.name.StartsWith("MT_Road") || collider.gameObject.name.StartsWith("MT_Turn"))
+
+            if (collider.gameObject.name.StartsWith("ED"))
+                return true;
+
+            if ((collider.gameObject.name.StartsWith("MT_Road") || collider.gameObject.name.StartsWith("MT_Turn")))
             {
-                Debug.Log($"collider object: {collider.gameObject.name}");
+                // Debug.Log($"collider object: {collider.gameObject.name}");
                 return false; // The robot is on the road, not out of track
-            }
+            };
         }
 
         // If no road material is found, the robot is out of the track
@@ -276,10 +356,10 @@ public class RobotController : Agent
         RaycastHit hit;
         if (Physics.Raycast(sensor.position, sensor.forward, out hit, sensorRange))
         {
-            Debug.DrawLine(sensor.position, hit.point, Color.red);
+            // Debug.DrawLine(sensor.position, hit.point, Color.red);
             return (hit.distance, hit.collider.gameObject.name);
         }
-        Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
+        // Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
         return (sensorRange, "None");
     }
 
