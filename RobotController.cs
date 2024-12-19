@@ -3,8 +3,11 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Threading.Tasks;
+using Unity.MLAgents;
+using Unity.MLAgents.Actuators;
+using Unity.MLAgents.Sensors;
 
-public class RobotController : MonoBehaviour
+public class RobotController : Agent
 {
     // naming constraints do not change
     [SerializeField] private WheelCollider FLC;
@@ -44,25 +47,185 @@ public class RobotController : MonoBehaviour
     private float currentSteerAngle = 0f;
     private float currentMotorTorque = 0f;
 
-    private void Start()
+    public override void OnEpisodeBegin()
     {
+        // Stop the robot's velocity and angular velocity to prevent movement at the start
+        Rigidbody rb = GetComponent<Rigidbody>();
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        // Stop all wheels from rotating by setting motorTorque to zero
+        FLC.motorTorque = 0f;
+        FRC.motorTorque = 0f;
+        RLC.motorTorque = 0f;
+        RRC.motorTorque = 0f;
+
+        // Reset wheel steer angles to prevent unintended turning
+        FLC.steerAngle = 0f;
+        FRC.steerAngle = 0f;
+
+        // Reset robot position and rotation as you have it in your current code
+        transform.position = new Vector3(195.6539f, 0.6679955f, 192.1293f);
+        transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+
+        // Set sensor orientations as defined
         SetSensorOrientations();
+
+        Debug.Log("Episode has started");
     }
 
-    private void FixedUpdate()
+    // public override void Heuristic(in ActionBuffers actionOut) {
+    //     ActionSegment<float> continuousActions = actionOut.ContinuousActions;
+    //     continuousActions[0] = Input.GetAxisRaw("Vertical") * 20;
+    //     continuousActions[1] = Input.GetAxisRaw("Horizontal") * 15;
+    // }
+
+    public override void OnActionReceived(ActionBuffers actions)
+    {
+        float motorTorque = actions.ContinuousActions[0];
+        float steeringAngle = actions.ContinuousActions[1];
+
+        Debug.Log($"motorTorque: {motorTorque}, steeringAngle: {steeringAngle}");
+        ApplySteering(steeringAngle * 30f);
+        ApplyMotorTorque(motorTorque * 250);
+
+        UpdateWheelTransforms();
+
+        // Reward or penalty based on track conditions
+        HandleTrackRewards();
+    }
+
+    private void HandleTrackRewards()
+    {
+        // Reward for moving forward on the road
+        float speed = Vector3.Dot(transform.forward, GetComponent<Rigidbody>().linearVelocity);
+        Debug.Log($"Speed: {speed}");
+        if (speed > 0)
+        {
+            AddReward(0.1f); // Reward for moving forward
+        }
+        else
+        {
+            AddReward(-0.1f); // Penalty for moving backward
+            EndEpisode();
+        }
+
+        // Check for obstacles and avoid collisions
+        var sensorReadings = GetSensorData();
+        foreach (var sensorReading in sensorReadings)
+        {
+            string sensorName = sensorReading.Key;
+            float distance = sensorReading.Value.Item1;
+            string hitObject = sensorReading.Value.Item2;
+
+            if (hitObject.Contains("Cube") && distance < obstacleDetectionDistance)
+            {
+                AddReward(-0.2f); // Penalty for hitting an obstacle
+                EndEpisode();
+            }
+            else if (distance < sensorRange)
+            {
+                AddReward(0.05f); // Bonus for avoiding obstacles
+            }
+        }
+
+        // Check if the robot passed a checkpoint
+        for (int i = 1; i <= 22; i++)
+        {
+            string checkpointName = "CP" + i;
+            if (CheckForCheckpointPassed(checkpointName))
+            {
+                AddReward(0.5f); // Reward for passing a checkpoint
+                break;
+            }
+        }
+
+        // Final reward for stopping after passing CP22 without falling off the track
+        if (HasPassedFinalCheckpoint() && IsStopped())
+        {
+            AddReward(1f); // Final bonus for stopping after passing CP22
+            EndEpisode();
+
+        }
+
+        // Check if the robot has fallen off the track
+        if (IsOutOfTrack())
+        {
+            AddReward(-1f); // Penalty for going off track
+            EndEpisode(); // End the episode if out of the track
+            Debug.Log("Called end episode");
+        }
+    }
+
+    private bool IsOutOfTrack()
+    {
+        // Check if the robot has moved outside the allowed track area
+        // You can define track boundaries based on the road material or specific coordinates
+        // Here, assuming the robot has gone out of bounds of the road material
+
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, 2f); // Adjust radius as necessary
+        foreach (var collider in hitColliders)
+        {
+
+            if (collider.gameObject.name.StartsWith("MT_Road") || collider.gameObject.name.StartsWith("MT_Turn"))
+            {
+                Debug.Log($"collider object: {collider.gameObject.name}");
+                return false; // The robot is on the road, not out of track
+            }
+        }
+
+        // If no road material is found, the robot is out of the track
+        return true;
+    }
+
+    private bool CheckForCheckpointPassed(string checkpointName)
+    {
+        // Check if the robot has passed a checkpoint
+        Collider[] hitColliders = Physics.OverlapSphere(transform.position, 1f); // Adjust radius as needed
+        foreach (var collider in hitColliders)
+        {
+            if (collider.gameObject.name.StartsWith(checkpointName))
+            {
+                return true; // The robot has passed this checkpoint
+            }
+        }
+        return false;
+    }
+
+    private bool HasPassedFinalCheckpoint()
+    {
+        // Check if the robot has passed CP22
+        return CheckForCheckpointPassed("CP22");
+    }
+
+    private bool IsStopped()
+    {
+        // Check if the robot has stopped moving (velocity is low)
+        return GetComponent<Rigidbody>().linearVelocity.magnitude < 0.1f; // Adjust as necessary for "stopped" state
+    }
+
+    public override void CollectObservations(VectorSensor sensor)
     {
         var sensorReadings = GetSensorData();
-        UpdateWheelTransforms();
+        sensor.AddObservation(sensorReadings["Front"].Item1);
+        sensor.AddObservation(sensorReadings["Left1"].Item1);
+        sensor.AddObservation(sensorReadings["Left2"].Item1);
+        sensor.AddObservation(sensorReadings["Left3"].Item1);
+        sensor.AddObservation(sensorReadings["Right1"].Item1);
+        sensor.AddObservation(sensorReadings["Right2"].Item1);
+        sensor.AddObservation(sensorReadings["Right3"].Item1);
+        sensor.AddObservation(sensorReadings["ORS"].Item1);
+        sensor.AddObservation(sensorReadings["ORSZ"].Item1);
     }
 
     private void SetSensorOrientations()
     {
-        FRS.localRotation = Quaternion.Euler(10, 0, 0);
-        L1S.localRotation = Quaternion.Euler(10, -20, 0);
-        L2S.localRotation = Quaternion.Euler(10, -40, 0);
+        FRS.localRotation = Quaternion.Euler(8, 0, 0);
+        L1S.localRotation = Quaternion.Euler(8, -20, 0);
+        L2S.localRotation = Quaternion.Euler(8, -40, 0);
         L3S.localRotation = Quaternion.Euler(10, -90, 0);
-        R1S.localRotation = Quaternion.Euler(10, 20, 0);
-        R2S.localRotation = Quaternion.Euler(10, 40, 0);
+        R1S.localRotation = Quaternion.Euler(8, 20, 0);
+        R2S.localRotation = Quaternion.Euler(8, 40, 0);
         R3S.localRotation = Quaternion.Euler(10, 90, 0);
     }
 
@@ -76,11 +239,37 @@ public class RobotController : MonoBehaviour
             { "Left3", CheckSensor(L3S) },
             { "Right1", CheckSensor(R1S) },
             { "Right2", CheckSensor(R2S) },
-            { "Right3", CheckSensor(R3S) }
+            { "Right3", CheckSensor(R3S) },
+            { "ORS", CheckOrientationSensor() },
+            { "ORSZ", CheckOrientationSensorZ() }
         };
     }
 
-    
+    private (float, string) CheckOrientationSensorZ()
+    {
+        // Get the robot's forward-facing angle relative to the world
+        float zaw = transform.eulerAngles.z;
+        // Debug.Log($"xaw pitch: {xaw}");
+        // Normalize the pitch
+        float normalizedPitch = (zaw > 180) ? zaw - 360 : zaw;
+
+        // Return the xaw value along with a descriptor
+        return (normalizedPitch, "OrientationZ");
+    }
+
+    private (float, string) CheckOrientationSensor()
+    {
+        // Get the robot's forward-facing angle relative to the world
+        float xaw = transform.eulerAngles.x;
+        // Debug.Log($"xaw pitch: {xaw}");
+        // Normalize the pitch
+        float normalizedPitch = (xaw > 180) ? xaw - 360 : xaw;
+
+        // Return the xaw value along with a descriptor
+        return (normalizedPitch, "OrientationX");
+    }
+
+
 
     private (float, string) CheckSensor(Transform sensor)
     {
