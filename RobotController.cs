@@ -119,13 +119,13 @@ public class RobotController : MonoBehaviour
         if (sensorReadings["Left3"].Item2.StartsWith("None") && (sensorReadings["Right3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Right3"].Item2.StartsWith("MT_Turn")))
         {
             deviation = sensorReadings["Right3"].Item1 - sensorRange;
-            // // Debug.Log("Special check1");
+            Debug.Log("Special check1");
         }
 
         if (sensorReadings["Right3"].Item2.StartsWith("None") && (sensorReadings["Left3"].Item2.StartsWith("MT_Road_01") || sensorReadings["Left3"].Item2.StartsWith("MT_Turn")))
         {
             deviation = sensorRange - sensorReadings["Left3"].Item1;
-            // // Debug.Log("Special check2");
+            Debug.Log("Special check2");
         }
 
         if (sensorReadings["Right3"].Item2.StartsWith("Cube") || sensorReadings["Left3"].Item2.StartsWith("Cube"))
@@ -138,7 +138,7 @@ public class RobotController : MonoBehaviour
         Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
 
         // Adjust steering angle based on deviation
-        if (Mathf.Abs(deviation) > 0.5f && !sensorReadings["Left3"].Item2.StartsWith("CP") && !sensorReadings["Right3"].Item2.StartsWith("CP")) // Adjust threshold as needed for sensitivity
+        if (Mathf.Abs(deviation) > 0.5f && !(sensorReadings["Left3"].Item2.StartsWith("CP") && sensorReadings["Right3"].Item2.StartsWith("CP"))) // Adjust threshold as needed for sensitivity
         {
             steerAngle = -deviation * turnSpeed / sensorRange;
             // Debug.Log($"steerAngle from LS3 and RS3: {steerAngle}");
@@ -178,7 +178,7 @@ public class RobotController : MonoBehaviour
 
                     // // Debug.Log($"Uphill detected: Pitch = {pitch}. Increasing torque for acceleration.");
                     // // Debug.Log($"FrontItem: {sensorReadings["Front"].Item2}");
-                    moveSpeed += motorTorque * 20f >= 250f ? 250f : motorTorque * 20f; // Boost acceleration
+                    moveSpeed += motorTorque * 20f >= 270f ? 270f : motorTorque * 20f; // Boost acceleration
                 }
 
             }
@@ -196,6 +196,8 @@ public class RobotController : MonoBehaviour
             }
         }
 
+        bool obstacleDetected = false;
+
         // Check for obstacles in front and react accordingly
         if (checkObstacle(sensorReadings, "Front") || checkObstacle(sensorReadings, "Left1") || checkObstacle(sensorReadings, "Left2") || checkObstacle(sensorReadings, "Right1") || checkObstacle(sensorReadings, "Right2"))
         {
@@ -209,12 +211,12 @@ public class RobotController : MonoBehaviour
                 if (sensorReadings["Left2"].Item2.StartsWith("Cube") && sensorReadings["Left2"].Item1 < obstacleDetectionDistance - 6 && sensorReadings["Left1"].Item1 > obstacleDetectionDistance)
                 {
 
-                    steerAngle = turnSpeed - 25;
+                    steerAngle = turnSpeed - 20;
                     // Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
                 }
                 else if (sensorReadings["Left1"].Item2.StartsWith("Cube") && sensorReadings["Left1"].Item1 < obstacleDetectionDistance - 3)
                 {
-                    steerAngle = turnSpeed - 15;
+                    steerAngle = turnSpeed - 10;
                     // Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
                 }
                 else if (!sensorReadings["Left1"].Item2.StartsWith("Cube") && !sensorReadings["Left2"].Item2.StartsWith("Cube"))
@@ -223,6 +225,7 @@ public class RobotController : MonoBehaviour
                     steerAngle = turnSpeed - 5;
                     // Debug.Log($"Other object detected. turnspeed: {steerAngle}");
                 }
+                obstacleDetected = true;
 
                 // Debug.Log($"steerAngle when rightClear: {steerAngle}");
             }
@@ -235,6 +238,8 @@ public class RobotController : MonoBehaviour
                     steerAngle = -turnSpeed + 15;
                 else if (!sensorReadings["Right1"].Item2.StartsWith("Cube") && !sensorReadings["Right2"].Item2.StartsWith("Cube"))
                     steerAngle = -turnSpeed + 5;
+                
+                obstacleDetected = true;
 
                 // Debug.Log($"steerAngle when leftClear: {steerAngle}");
             }
@@ -287,8 +292,8 @@ public class RobotController : MonoBehaviour
 
         }
 
-        if (isTurningPointDetected)
-        {
+        // if (isTurningPointDetected)
+        // {
             bool leftEdgeDetected = false;
             bool righEdgeDetected = false;
             if ((sensorReadings["Left1"].Item2.StartsWith("ED") || sensorReadings["Left2"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("ED")) &&
@@ -321,7 +326,7 @@ public class RobotController : MonoBehaviour
 
             Debug.Log($"Detection: steeringAngle: {steerAngle}");
 
-            if ((leftEdgeDetected || righEdgeDetected) && !(leftEdgeDetected && righEdgeDetected))
+            if ((leftEdgeDetected || righEdgeDetected) && !(leftEdgeDetected && righEdgeDetected) && !obstacleDetected)
             {
                 if (leftEdgeDetected)
                 {
@@ -337,7 +342,7 @@ public class RobotController : MonoBehaviour
                     Debug.Log($"Detection: rightEdge, steeringAngle: {steerAngle}");
                 }
             }
-        }
+        // }
 
 
         if (!finishingPointDetected)
