@@ -62,7 +62,7 @@ public class RobotController : MonoBehaviour
         var sensorReadings = GetSensorData();
         HandleNavigation(sensorReadings);
         UpdateWheelTransforms();
-        Debug.Log("Time");
+        // Debug.Log("Time");
     }
 
     private void SetSensorOrientations()
@@ -133,12 +133,12 @@ public class RobotController : MonoBehaviour
             deviation = 0;
         }
 
-        // Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
-        // // Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
-        // // Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
+        Debug.Log($"Deviation: {deviation}, LeftEdge: {leftEdge}, LeftEdgeItem: {sensorReadings["Left3"].Item2}, RightEdge: {rightEdge}, RightEdgeItem: {sensorReadings["Right3"].Item2},");
+        Debug.Log($"Left1Item: {sensorReadings["Left1"].Item2}, Left2Item: {sensorReadings["Left2"].Item2}");
+        Debug.Log($"Right1Item: {sensorReadings["Right1"].Item2}, Right2Item: {sensorReadings["Right2"].Item2},");
 
         // Adjust steering angle based on deviation
-        if (Mathf.Abs(deviation) > 0.5f) // Adjust threshold as needed for sensitivity
+        if (Mathf.Abs(deviation) > 0.5f && !sensorReadings["Left3"].Item2.StartsWith("CP") && !sensorReadings["Right3"].Item2.StartsWith("CP")) // Adjust threshold as needed for sensitivity
         {
             steerAngle = -deviation * turnSpeed / sensorRange;
             // Debug.Log($"steerAngle from LS3 and RS3: {steerAngle}");
@@ -217,7 +217,7 @@ public class RobotController : MonoBehaviour
                     steerAngle = turnSpeed - 15;
                     // Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
                 }
-                else if(!sensorReadings["Left1"].Item2.StartsWith("Cube") && !sensorReadings["Left2"].Item2.StartsWith("Cube"))
+                else if (!sensorReadings["Left1"].Item2.StartsWith("Cube") && !sensorReadings["Left2"].Item2.StartsWith("Cube"))
                 {
 
                     steerAngle = turnSpeed - 5;
@@ -233,7 +233,7 @@ public class RobotController : MonoBehaviour
                     steerAngle = -turnSpeed + 25;
                 else if (sensorReadings["Right1"].Item2.StartsWith("Cube") && sensorReadings["Right1"].Item1 < obstacleDetectionDistance - 3)
                     steerAngle = -turnSpeed + 15;
-                else if(!sensorReadings["Right1"].Item2.StartsWith("Cube") && !sensorReadings["Right2"].Item2.StartsWith("Cube"))
+                else if (!sensorReadings["Right1"].Item2.StartsWith("Cube") && !sensorReadings["Right2"].Item2.StartsWith("Cube"))
                     steerAngle = -turnSpeed + 5;
 
                 // Debug.Log($"steerAngle when leftClear: {steerAngle}");
@@ -251,11 +251,14 @@ public class RobotController : MonoBehaviour
 
             // Scale the reduction (tweak the factor as needed)
             float reductionFactor = 0.1f; // Adjust this value for sensitivity
-            steerAngle -= speedExcess * reductionFactor;
+            if(steerAngle> 0f)
+                steerAngle -= speedExcess * reductionFactor;
+            else if(steerAngle<0f)
+                steerAngle += speedExcess * reductionFactor;
 
             // Optionally clamp the steerAngle to avoid excessive reduction
             steerAngle = Mathf.Clamp(steerAngle, -turnSpeed + 5, turnSpeed - 5); // Replace 'maxSteerAngle' with your max limit
-            // // Debug.Log($"Adjusted steering angle: {steerAngle}");
+            Debug.Log($"Adjusted steering angle: {steerAngle}");
         }
 
         if (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED"))
@@ -282,6 +285,58 @@ public class RobotController : MonoBehaviour
 
             }
 
+        }
+
+        if (isTurningPointDetected)
+        {
+            bool leftEdgeDetected = false;
+            bool righEdgeDetected = false;
+            if ((sensorReadings["Left1"].Item2.StartsWith("ED") || sensorReadings["Left2"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("ED")) &&
+                (!sensorReadings["Right1"].Item2.StartsWith("ED") && !sensorReadings["Right2"].Item2.StartsWith("ED") && !sensorReadings["Right3"].Item2.StartsWith("ED"))
+            )
+            {
+                leftEdgeDetected = true;
+                // Debug.Log($"Detection: leftEdge, steeringAngle: {steerAngle}");
+            }
+            else if (!sensorReadings["Left1"].Item2.StartsWith("None") && !sensorReadings["Left2"].Item2.StartsWith("None") && !sensorReadings["Left3"].Item2.StartsWith("None") &&
+                sensorReadings["Right1"].Item2.StartsWith("None") && sensorReadings["Right2"].Item2.StartsWith("None") && sensorReadings["Right3"].Item2.StartsWith("None")
+            )
+            {
+                leftEdgeDetected = true;
+            }
+
+            if ((sensorReadings["Right1"].Item2.StartsWith("ED") || sensorReadings["Right2"].Item2.StartsWith("ED") || sensorReadings["Right3"].Item2.StartsWith("ED")) &&
+                (!sensorReadings["Left1"].Item2.StartsWith("ED") && !sensorReadings["Left2"].Item2.StartsWith("ED") && !sensorReadings["Left3"].Item2.StartsWith("ED"))
+            )
+            {
+                righEdgeDetected = true;
+                // Debug.Log($"Detection: rightEdge, steeringAngle: {steerAngle}");
+            }
+            else if (!sensorReadings["Right1"].Item2.StartsWith("None") && !sensorReadings["Right2"].Item2.StartsWith("None") && !sensorReadings["Right3"].Item2.StartsWith("None") &&
+                sensorReadings["Left1"].Item2.StartsWith("None") && sensorReadings["Left2"].Item2.StartsWith("None") && sensorReadings["Left3"].Item2.StartsWith("None")
+            )
+            {
+                righEdgeDetected = true;
+            }
+
+            Debug.Log($"Detection: steeringAngle: {steerAngle}");
+
+            if ((leftEdgeDetected || righEdgeDetected) && !(leftEdgeDetected && righEdgeDetected))
+            {
+                if (leftEdgeDetected)
+                {
+                    if (steerAngle < 5)
+                        steerAngle = 5f;
+                    Debug.Log($"Detection: leftEdge, steeringAngle: {steerAngle}");
+
+                }
+                else
+                {
+                    if (steerAngle > 5f)
+                        steerAngle = -5f;
+                    Debug.Log($"Detection: rightEdge, steeringAngle: {steerAngle}");
+                }
+            }
         }
 
 
