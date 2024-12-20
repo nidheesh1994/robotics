@@ -208,22 +208,22 @@ public class RobotController : MonoBehaviour
             if (rightClear)
             {
                 // steerAngle = isTurningPointDetected ? turnSpeed * 10 : turnSpeed; // Turn right
-                if (sensorReadings["Left2"].Item2.StartsWith("Cube") && sensorReadings["Left2"].Item1 < obstacleDetectionDistance - 6 && sensorReadings["Left1"].Item1 > obstacleDetectionDistance)
+                if (sensorReadings["Left2"].Item2.StartsWith("Cube") && sensorReadings["Left2"].Item1 < obstacleDetectionDistance - 3 && sensorReadings["Left1"].Item1 > obstacleDetectionDistance)
                 {
 
                     steerAngle = turnSpeed - 20;
-                    // Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
+                    Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
                 }
-                else if (sensorReadings["Left1"].Item2.StartsWith("Cube") && sensorReadings["Left1"].Item1 < obstacleDetectionDistance - 3)
+                else if (sensorReadings["Left1"].Item2.StartsWith("Cube") && sensorReadings["Left1"].Item1 < obstacleDetectionDistance - 2)
                 {
                     steerAngle = turnSpeed - 10;
-                    // Debug.Log($"LF2 detected object turnspeed: {steerAngle}");
+                    Debug.Log($"LF1 detected object turnspeed: {steerAngle}");
                 }
                 else if (!sensorReadings["Left1"].Item2.StartsWith("Cube") && !sensorReadings["Left2"].Item2.StartsWith("Cube"))
                 {
 
                     steerAngle = turnSpeed - 5;
-                    // Debug.Log($"Other object detected. turnspeed: {steerAngle}");
+                    Debug.Log($"Other object detected. turnspeed: {steerAngle}");
                 }
                 obstacleDetected = true;
 
@@ -232,13 +232,20 @@ public class RobotController : MonoBehaviour
             else if (leftClear)
             {
                 // steerAngle = isTurningPointDetected ? -turnSpeed * 10 : -turnSpeed; // Turn left
-                if (sensorReadings["Right2"].Item2.StartsWith("Cube") && sensorReadings["Right2"].Item1 < obstacleDetectionDistance - 6 && sensorReadings["Right1"].Item1 > obstacleDetectionDistance)
+                if (sensorReadings["Right2"].Item2.StartsWith("Cube") && sensorReadings["Right2"].Item1 < obstacleDetectionDistance - 3 && sensorReadings["Right1"].Item1 > obstacleDetectionDistance)
+                {
                     steerAngle = -turnSpeed + 25;
-                else if (sensorReadings["Right1"].Item2.StartsWith("Cube") && sensorReadings["Right1"].Item1 < obstacleDetectionDistance - 3)
+                    Debug.Log($"RF2 detected object turnspeed: {steerAngle}");
+                }
+                else if (sensorReadings["Right1"].Item2.StartsWith("Cube") && sensorReadings["Right1"].Item1 < obstacleDetectionDistance - 2)
+                {
                     steerAngle = -turnSpeed + 15;
+                    Debug.Log($"RF1 detected object turnspeed: {steerAngle}");
+                }
+
                 else if (!sensorReadings["Right1"].Item2.StartsWith("Cube") && !sensorReadings["Right2"].Item2.StartsWith("Cube"))
                     steerAngle = -turnSpeed + 5;
-                
+
                 obstacleDetected = true;
 
                 // Debug.Log($"steerAngle when leftClear: {steerAngle}");
@@ -256,9 +263,9 @@ public class RobotController : MonoBehaviour
 
             // Scale the reduction (tweak the factor as needed)
             float reductionFactor = 0.1f; // Adjust this value for sensitivity
-            if(steerAngle> 0f)
+            if (steerAngle > 0f)
                 steerAngle -= speedExcess * reductionFactor;
-            else if(steerAngle<0f)
+            else if (steerAngle < 0f)
                 steerAngle += speedExcess * reductionFactor;
 
             // Optionally clamp the steerAngle to avoid excessive reduction
@@ -294,83 +301,83 @@ public class RobotController : MonoBehaviour
 
         // if (isTurningPointDetected)
         // {
-            bool leftEdgeDetected = false;
-            bool righEdgeDetected = false;
-            if ((sensorReadings["Left1"].Item2.StartsWith("ED") || sensorReadings["Left2"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("ED")) &&
-                (!sensorReadings["Right1"].Item2.StartsWith("ED") && !sensorReadings["Right2"].Item2.StartsWith("ED") && !sensorReadings["Right3"].Item2.StartsWith("ED"))
-            )
-            {
-                leftEdgeDetected = true;
-                // Debug.Log($"Detection: leftEdge, steeringAngle: {steerAngle}");
-            }
-            else if (!sensorReadings["Left1"].Item2.StartsWith("None") && !sensorReadings["Left2"].Item2.StartsWith("None") && !sensorReadings["Left3"].Item2.StartsWith("None") &&
-                sensorReadings["Right1"].Item2.StartsWith("None") && sensorReadings["Right2"].Item2.StartsWith("None") && sensorReadings["Right3"].Item2.StartsWith("None")
-            )
-            {
-                leftEdgeDetected = true;
-            }
-
-            if ((sensorReadings["Right1"].Item2.StartsWith("ED") || sensorReadings["Right2"].Item2.StartsWith("ED") || sensorReadings["Right3"].Item2.StartsWith("ED")) &&
-                (!sensorReadings["Left1"].Item2.StartsWith("ED") && !sensorReadings["Left2"].Item2.StartsWith("ED") && !sensorReadings["Left3"].Item2.StartsWith("ED"))
-            )
-            {
-                righEdgeDetected = true;
-                // Debug.Log($"Detection: rightEdge, steeringAngle: {steerAngle}");
-            }
-            else if (!sensorReadings["Right1"].Item2.StartsWith("None") && !sensorReadings["Right2"].Item2.StartsWith("None") && !sensorReadings["Right3"].Item2.StartsWith("None") &&
-                sensorReadings["Left1"].Item2.StartsWith("None") && sensorReadings["Left2"].Item2.StartsWith("None") && sensorReadings["Left3"].Item2.StartsWith("None")
-            )
-            {
-                righEdgeDetected = true;
-            }
-
-            Debug.Log($"Detection: steeringAngle: {steerAngle}");
-
-            if ((leftEdgeDetected || righEdgeDetected) && !(leftEdgeDetected && righEdgeDetected) && !obstacleDetected)
-            {
-                if (leftEdgeDetected)
-                {
-                    if (steerAngle < 5)
-                        steerAngle = 5f;
-                    Debug.Log($"Detection: leftEdge, steeringAngle: {steerAngle}");
-
-                }
-                else
-                {
-                    if (steerAngle > 5f)
-                        steerAngle = -5f;
-                    Debug.Log($"Detection: rightEdge, steeringAngle: {steerAngle}");
-                }
-            }
-        // }
-
-
-        if (!finishingPointDetected)
+        bool leftEdgeDetected = false;
+        bool righEdgeDetected = false;
+        if ((sensorReadings["Left1"].Item2.StartsWith("ED") || sensorReadings["Left2"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("ED")) &&
+            (!sensorReadings["Right1"].Item2.StartsWith("ED") && !sensorReadings["Right2"].Item2.StartsWith("ED") && !sensorReadings["Right3"].Item2.StartsWith("ED"))
+        )
         {
-            finishingPointDetected = checkFinishingPoint(sensorReadings);
+            leftEdgeDetected = true;
+            // Debug.Log($"Detection: leftEdge, steeringAngle: {steerAngle}");
         }
-        else
+        else if (!sensorReadings["Left1"].Item2.StartsWith("None") && !sensorReadings["Left2"].Item2.StartsWith("None") && !sensorReadings["Left3"].Item2.StartsWith("None") &&
+            sensorReadings["Right1"].Item2.StartsWith("None") && sensorReadings["Right2"].Item2.StartsWith("None") && sensorReadings["Right3"].Item2.StartsWith("None")
+        )
         {
-            // Get the rpm for each wheel
-            float flcRpm = FLC.rpm; // Front Left Wheel RPM
-            float frcRpm = FRC.rpm; // Front Right Wheel RPM
-            float rlcRpm = RLC.rpm; // Rear Left Wheel RPM
-            float rrcRpm = RRC.rpm; // Rear Right Wheel RPM
+            leftEdgeDetected = true;
+        }
 
-            // Check if the wheel is still moving (RPM > 0 means it's rotating)
-            if (flcRpm > 0.1f || frcRpm > 0.1f || rlcRpm > 0.1f || rrcRpm > 0.1f)
+        if ((sensorReadings["Right1"].Item2.StartsWith("ED") || sensorReadings["Right2"].Item2.StartsWith("ED") || sensorReadings["Right3"].Item2.StartsWith("ED")) &&
+            (!sensorReadings["Left1"].Item2.StartsWith("ED") && !sensorReadings["Left2"].Item2.StartsWith("ED") && !sensorReadings["Left3"].Item2.StartsWith("ED"))
+        )
+        {
+            righEdgeDetected = true;
+            // Debug.Log($"Detection: rightEdge, steeringAngle: {steerAngle}");
+        }
+        else if (!sensorReadings["Right1"].Item2.StartsWith("None") && !sensorReadings["Right2"].Item2.StartsWith("None") && !sensorReadings["Right3"].Item2.StartsWith("None") &&
+            sensorReadings["Left1"].Item2.StartsWith("None") && sensorReadings["Left2"].Item2.StartsWith("None") && sensorReadings["Left3"].Item2.StartsWith("None")
+        )
+        {
+            righEdgeDetected = true;
+        }
+
+        Debug.Log($"Detection: steeringAngle: {steerAngle}");
+
+        if ((leftEdgeDetected || righEdgeDetected) && !(leftEdgeDetected && righEdgeDetected) && !obstacleDetected)
+        {
+            if (leftEdgeDetected)
             {
-                //Applying hard breaking
-                moveSpeed = finalBrakeForce;
-                ApplyMotorTorque(finalBrakeForce);
+                if (steerAngle < 5)
+                    steerAngle = 5f;
+                Debug.Log($"Detection: leftEdge, steeringAngle: {steerAngle}");
+
             }
             else
             {
-                moveSpeed = 0f;
-                ApplyMotorTorque(moveSpeed);
+                if (steerAngle > 5f)
+                    steerAngle = -5f;
+                Debug.Log($"Detection: rightEdge, steeringAngle: {steerAngle}");
             }
-
         }
+        // }
+
+
+        // if (!finishingPointDetected)
+        // {
+        //     finishingPointDetected = checkFinishingPoint(sensorReadings);
+        // }
+        // else
+        // {
+        //     // Get the rpm for each wheel
+        //     float flcRpm = FLC.rpm; // Front Left Wheel RPM
+        //     float frcRpm = FRC.rpm; // Front Right Wheel RPM
+        //     float rlcRpm = RLC.rpm; // Rear Left Wheel RPM
+        //     float rrcRpm = RRC.rpm; // Rear Right Wheel RPM
+
+        //     // Check if the wheel is still moving (RPM > 0 means it's rotating)
+        //     if (flcRpm > 0.1f || frcRpm > 0.1f || rlcRpm > 0.1f || rrcRpm > 0.1f)
+        //     {
+        //         //Applying hard breaking
+        //         moveSpeed = finalBrakeForce;
+        //         ApplyMotorTorque(finalBrakeForce);
+        //     }
+        //     else
+        //     {
+        //         moveSpeed = 0f;
+        //         ApplyMotorTorque(moveSpeed);
+        //     }
+
+        // }
 
         // Access forward friction
         // WheelFrictionCurve forwardFriction = FLC.forwardFriction;
@@ -401,10 +408,10 @@ public class RobotController : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(sensor.position, sensor.forward, out hit, sensorRange))
         {
-            Debug.DrawLine(sensor.position, hit.point, Color.red);
+            // Debug.DrawLine(sensor.position, hit.point, Color.red);
             return (hit.distance, hit.collider.gameObject.name);
         }
-        Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
+        // Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
         return (sensorRange, "None");
     }
 
