@@ -280,14 +280,8 @@ public class RobotController : MonoBehaviour
                 // Ensure speed doesn't go negative
                 moveSpeed = -Mathf.Max(moveSpeed, 0f);
 
-
-                ApplyBrakeTorque(brakeTorque);
             }
 
-        }
-        else
-        {
-            ApplyBrakeTorque(0f);
         }
 
 
@@ -308,13 +302,11 @@ public class RobotController : MonoBehaviour
             {
                 //Applying hard breaking
                 moveSpeed = finalBrakeForce;
-                ApplyBrakeTorque(1000f);
                 ApplyMotorTorque(finalBrakeForce);
             }
             else
             {
                 moveSpeed = 0f;
-                ApplyBrakeTorque(1000f);
                 ApplyMotorTorque(moveSpeed);
             }
 
@@ -340,7 +332,7 @@ public class RobotController : MonoBehaviour
 
     private bool checkObstacle(Dictionary<string, (float, string)> sensorReadings, string sensor)
     {
-        return sensorReadings[sensor].Item1 < obstacleDetectionDistance && !sensorReadings[sensor].Item2.StartsWith("CP") && !sensorReadings[sensor].Item2.StartsWith("MT_Road_01") && !sensorReadings[sensor].Item2.StartsWith("MT_Turn");
+        return sensorReadings[sensor].Item1 < obstacleDetectionDistance && !sensorReadings[sensor].Item2.StartsWith("CP") && !sensorReadings[sensor].Item2.StartsWith("MT_Road") && !sensorReadings[sensor].Item2.StartsWith("MT_Turn");
     }
 
 
@@ -349,10 +341,10 @@ public class RobotController : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(sensor.position, sensor.forward, out hit, sensorRange))
         {
-            // Debug.DrawLine(sensor.position, hit.point, Color.red);
+            Debug.DrawLine(sensor.position, hit.point, Color.red);
             return (hit.distance, hit.collider.gameObject.name);
         }
-        // Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
+        Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
         return (sensorRange, "None");
     }
 
@@ -374,16 +366,6 @@ public class RobotController : MonoBehaviour
         FRC.motorTorque = currentMotorTorque;
         RLC.motorTorque = currentMotorTorque;
         RRC.motorTorque = currentMotorTorque;
-    }
-
-    private void ApplyBrakeTorque(float targetTorque)
-    {
-        currentBrakeTorque = Mathf.Lerp(currentBrakeTorque, targetTorque, Time.deltaTime * decelerationSmoothing);
-        // Debug.Log($"currentBrakeTorque: {currentBrakeTorque}");
-        FLC.motorTorque = currentBrakeTorque;
-        FRC.motorTorque = currentBrakeTorque;
-        RLC.motorTorque = currentBrakeTorque;
-        RRC.motorTorque = currentBrakeTorque;
     }
 
     private void UpdateWheelTransforms()
