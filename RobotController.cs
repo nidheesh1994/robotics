@@ -225,6 +225,8 @@ public class RobotController : MonoBehaviour
                     steerAngle = turnSpeed - 5;
                     // Debug.Log($"Other object detected. turnspeed: {steerAngle}");
                 }
+                else
+                    steerAngle = currentSteerAngle / 2f;
                 obstacleDetected = true;
 
                 // Debug.Log($"steerAngle when rightClear: {steerAngle}");
@@ -245,6 +247,8 @@ public class RobotController : MonoBehaviour
 
                 else if (!sensorReadings["Right1"].Item2.StartsWith("Cube") && !sensorReadings["Right2"].Item2.StartsWith("Cube"))
                     steerAngle = -turnSpeed + 5;
+                else
+                    steerAngle = currentSteerAngle / 2f;
 
                 obstacleDetected = true;
 
