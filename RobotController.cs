@@ -154,8 +154,6 @@ public class RobotController : Agent
                 {
                     AddReward(0.025f * distance); // Bonus for avoiding obstacles
                 }
-
-
             }
 
         }
@@ -176,6 +174,19 @@ public class RobotController : Agent
             }
 
             flat = true;
+        }
+
+        bool isTurningPointDetected =
+            sensorReadings["Front"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Left1"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Left2"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Right1"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Right2"].Item2.StartsWith("MT_Turn");
+
+        if(isTurningPointDetected)
+        {
+            if(motorTorque <= 3f)
+                AddReward(1f);
         }
 
         // Debug.Log($"Left3 distance : {sensorReadings["Left3"].Item1}, object : {sensorReadings["Left3"].Item2}");
