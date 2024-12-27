@@ -83,7 +83,7 @@ public class RobotController : Agent
     public override void Heuristic(in ActionBuffers actionOut)
     {
         ActionSegment<float> continuousActions = actionOut.ContinuousActions;
-        continuousActions[0] = Input.GetAxisRaw("Vertical") * 1;
+        continuousActions[0] = Input.GetAxisRaw("Vertical") * .5f;
         continuousActions[1] = Input.GetAxisRaw("Horizontal") * 15;
     }
 
@@ -142,19 +142,19 @@ public class RobotController : Agent
             float distance = sensorReading.Value.Item1;
             string hitObject = sensorReading.Value.Item2;
 
-            if (hitObject.Contains("Cube") && distance < obstacleDetectionDistance - 5.5f)
+            if (hitObject.Contains("Cube"))
             {
-                if (sensorName != "Left3" && sensorName != "Right3")
+                if (distance < 1f)
                 {
                     AddReward(-0.2f); // Penalty for hitting an obstacle
                     Debug.Log("EndEpisode: obstacle hit");
                     EndEpisode();
                 }
-                else
+                else if (sensorName == "Left3" || sensorName == "Right3")
                 {
-                    if(distance > 1.0f)
-                        AddReward(0.05f); // Bonus for avoiding obstacles
+                    AddReward(0.025f * distance); // Bonus for avoiding obstacles
                 }
+
 
             }
 
@@ -204,7 +204,7 @@ public class RobotController : Agent
             string checkpointName = "CP" + i;
             if (CheckForCheckpointPassed(checkpointName))
             {
-                AddReward(0.5f); // Reward for passing a checkpoint
+                AddReward(0.2f * i); // Reward for passing a checkpoint
                 break;
             }
         }
@@ -287,6 +287,8 @@ public class RobotController : Agent
     public override void CollectObservations(VectorSensor sensor)
     {
         var sensorReadings = GetSensorData();
+        int frontItemId = GetHitItemId(sensorReadings["Front"].Item2);
+        sensor.AddObservation(frontItemId);
         sensor.AddObservation(sensorReadings["Front"].Item1);
         sensor.AddObservation(sensorReadings["Left1"].Item1);
         sensor.AddObservation(sensorReadings["Left2"].Item1);
@@ -296,6 +298,24 @@ public class RobotController : Agent
         sensor.AddObservation(sensorReadings["Right3"].Item1);
         sensor.AddObservation(sensorReadings["ORS"].Item1);
         sensor.AddObservation(sensorReadings["ORSZ"].Item1);
+    }
+
+    private int GetHitItemId(string hitName)
+    {
+        if (hitName.StartsWith("MT_Road"))
+            return 1;
+        else if (hitName.StartsWith("MT_Turn"))
+            return 2;
+        else if (hitName.StartsWith("CP"))
+            return 3;
+        else if (hitName.StartsWith("Plane"))
+            return 4;
+        else if (hitName.StartsWith("ED"))
+            return 5;
+        else if (hitName.StartsWith("Cube"))
+            return 6;
+        else
+            return 0;
     }
 
     private void SetSensorOrientations()
