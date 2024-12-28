@@ -121,15 +121,17 @@ public class RobotController : Agent
     {
         // Reward for moving forward on the road
         float speed = Vector3.Dot(transform.forward, GetComponent<Rigidbody>().linearVelocity);
-        // Debug.Log($"Speed: {speed}");
+        Debug.Log($"Speed: {speed}");
         if (speed > 0f)
         {
             if (speed > 0.5f)
                 AddReward(0.1f); // Reward for moving forward
+            else
+                AddReward(-0.1f);
         }
         else
         {
-            AddReward(-0.1f); // Penalty for moving backward
+            AddReward(-1f); // Penalty for moving backward
             Debug.Log("EndEpisode: Reversed");
             EndEpisode();
         }
@@ -170,6 +172,11 @@ public class RobotController : Agent
         Debug.Log($"Motor torque : {motorTorque}, steering angle: {steeringAngle}");
         if (sensorReadings["ORS"].Item1 < 2f && sensorReadings["ORS"].Item1 > -2f && !isTurningPointDetected)
         {
+            if(speed <= 3f)
+                AddReward(0.1f);
+            else
+                AddReward(-0.1f);
+                
             if (motorTorque <= 12f && motorTorque >= 3f)
             {
                 AddReward(0.8f);
@@ -179,6 +186,13 @@ public class RobotController : Agent
             {
                 AddReward(-0.1f);
             }
+
+            bool cpInfront = sensorReadings["Front"].Item2.StartsWith("CP") ||
+                        sensorReadings["Right2"].Item2.StartsWith("CP") ||
+                        sensorReadings["Left1"].Item2.StartsWith("CP");
+            
+            if(cpInfront && Mathf.Abs(steeringAngle) > 10f)
+                AddReward(-1f);
 
             flat = true;
         }
