@@ -48,7 +48,7 @@ public class RobotController : Agent
     private float currentMotorTorque = 0f;
 
     private float episodeTime = 0f; // Track the elapsed time since the episode started
-    private const float maxEpisodeTime = 120f; // Max episode time in seconds (120 seconds)
+    private const float maxEpisodeTime = 2500f; // Max episode time in seconds (120 seconds)
 
     public override void OnEpisodeBegin()
     {
@@ -160,10 +160,17 @@ public class RobotController : Agent
 
         bool flat = false;
 
+        bool isTurningPointDetected =
+            sensorReadings["Front"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Left1"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Left2"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Right1"].Item2.StartsWith("MT_Turn") ||
+            sensorReadings["Right2"].Item2.StartsWith("MT_Turn");
+
         Debug.Log($"Motor torque : {motorTorque}, steering angle: {steeringAngle}");
-        if (sensorReadings["ORS"].Item1 < 2f && sensorReadings["ORS"].Item1 > -2f)
+        if (sensorReadings["ORS"].Item1 < 2f && sensorReadings["ORS"].Item1 > -2f && !isTurningPointDetected)
         {
-            if (motorTorque <= 20f && motorTorque >= 3f)
+            if (motorTorque <= 12f && motorTorque >= 3f)
             {
                 AddReward(0.8f);
                 Debug.Log("Reward 0.8 added");
@@ -176,17 +183,54 @@ public class RobotController : Agent
             flat = true;
         }
 
-        bool isTurningPointDetected =
-            sensorReadings["Front"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Left1"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Left2"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Right1"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Right2"].Item2.StartsWith("MT_Turn");
 
-        if(isTurningPointDetected)
+
+
+
+        if (isTurningPointDetected)
         {
-            if(motorTorque <= 3f)
+            if (motorTorque <= 3f)
                 AddReward(1f);
+
+
+
+            bool leftEdge = (sensorReadings["Left3"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("Plane")) &&
+                        (sensorReadings["Left2"].Item2.StartsWith("ED") || sensorReadings["Left2"].Item2.StartsWith("Plane")) &&
+                        (sensorReadings["Left1"].Item2.StartsWith("ED") || sensorReadings["Left1"].Item2.StartsWith("Plane")) &&
+                        (sensorReadings["Right3"].Item2.StartsWith("MT_Turn") && sensorReadings["Right2"].Item2.StartsWith("MT_Turn") && sensorReadings["Right1"].Item2.StartsWith("MT_Turn"));
+
+            bool rightEdge = (sensorReadings["Right3"].Item2.StartsWith("ED") || sensorReadings["Right3"].Item2.StartsWith("Plane")) &&
+                        (sensorReadings["Right2"].Item2.StartsWith("ED") || sensorReadings["Right2"].Item2.StartsWith("Plane")) &&
+                        (sensorReadings["Right1"].Item2.StartsWith("ED") || sensorReadings["Right1"].Item2.StartsWith("Plane")) &&
+                        (sensorReadings["Left1"].Item2.StartsWith("MT_Turn") && sensorReadings["Left2"].Item2.StartsWith("MT_Turn") && sensorReadings["Left3"].Item2.StartsWith("MT_Turn"));
+
+            if (leftEdge && !rightEdge)
+            {
+                if (Mathf.Abs(steeringAngle) > 5f)
+                    AddReward(0.1f * steeringAngle);
+                else
+                {
+                    AddReward(-1f);
+                    Debug.Log("Leftedge detected angle not correct");
+                }
+
+            }
+            else if (rightEdge && !leftEdge)
+            {
+                if (Mathf.Abs(steeringAngle) < -5f)
+                    AddReward(0.1f * steeringAngle);
+                else
+                {
+                    AddReward(-1f);
+                    Debug.Log("Rightedge detected angle not correct");
+                }
+            }
+
+        }
+        else
+        {
+            if (currentSteerAngle == -steeringAngle)
+                AddReward(-0.5f);
         }
 
         // Debug.Log($"Left3 distance : {sensorReadings["Left3"].Item1}, object : {sensorReadings["Left3"].Item2}");
@@ -203,11 +247,14 @@ public class RobotController : Agent
             AddReward(-0.2f);
         }
 
-        if (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED"))
+        if (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED") && !isTurningPointDetected)
+        {
             AddReward(0.05f);
-        float deviation = sensorReadings["Left3"].Item1 - sensorReadings["Right3"].Item1;
-        if (Mathf.Abs(deviation) < 0.5f)
-            AddReward(0.1f);
+            float deviation = sensorReadings["Left3"].Item1 - sensorReadings["Right3"].Item1;
+            if (Mathf.Abs(deviation) < 0.5f)
+                AddReward(0.1f);
+        }
+
 
         // Check if the robot passed a checkpoint
         for (int i = 1; i <= 22; i++)
@@ -236,6 +283,9 @@ public class RobotController : Agent
             AddReward(-1f); // Penalty for going off track
             if (flat)
                 AddReward(-0.5f);
+
+            if (isTurningPointDetected)
+                AddReward(-1f);
 
             Debug.Log("EndEpisode: out of track");
             EndEpisode(); // End the episode if out of the track
@@ -332,11 +382,11 @@ public class RobotController : Agent
     private void SetSensorOrientations()
     {
         FRS.localRotation = Quaternion.Euler(8, 0, 0);
-        L1S.localRotation = Quaternion.Euler(8, -20, 0);
-        L2S.localRotation = Quaternion.Euler(8, -40, 0);
+        L1S.localRotation = Quaternion.Euler(8, -15, 0);
+        L2S.localRotation = Quaternion.Euler(8, -35, 0);
         L3S.localRotation = Quaternion.Euler(10, -90, 0);
-        R1S.localRotation = Quaternion.Euler(8, 20, 0);
-        R2S.localRotation = Quaternion.Euler(8, 40, 0);
+        R1S.localRotation = Quaternion.Euler(8, 15, 0);
+        R2S.localRotation = Quaternion.Euler(8, 35, 0);
         R3S.localRotation = Quaternion.Euler(10, 90, 0);
     }
 
@@ -387,10 +437,10 @@ public class RobotController : Agent
         RaycastHit hit;
         if (Physics.Raycast(sensor.position, sensor.forward, out hit, sensorRange))
         {
-            // Debug.DrawLine(sensor.position, hit.point, Color.red);
+            Debug.DrawLine(sensor.position, hit.point, Color.red);
             return (hit.distance, hit.collider.gameObject.name);
         }
-        // Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
+        Debug.DrawLine(sensor.position, sensor.position + sensor.forward * sensorRange, Color.green);
         return (sensorRange, "None");
     }
 
