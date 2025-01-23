@@ -70,9 +70,20 @@ public class RobotController : Agent
         FLC.steerAngle = 0f;
         FRC.steerAngle = 0f;
 
+        // transform.localPosition = new Vector3(194.7755f, 0.6679955f, -153.1348f);
         // Reset robot position and rotation as you have it in your current code
+
+        //first position
         transform.localPosition = new Vector3(195.6539f, 0.6679955f, 192.1293f);
         transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+
+        // third position
+        // transform.localPosition = new Vector3(63.20256f, 14.68702f, -123.3367f);
+        // transform.rotation = Quaternion.Euler(10.608f, 359.733f, -1.223f);
+
+        // fourth position
+        // transform.localPosition = new Vector3(23.57335f, 16.44876f, -23.40142f);
+        // transform.rotation = Quaternion.Euler(-0.08f, 187.596f, 0.571f);
 
         // Set sensor orientations as defined
         SetSensorOrientations();
@@ -91,6 +102,7 @@ public class RobotController : Agent
     {
         // Update the elapsed time
         episodeTime += Time.deltaTime;
+        AddReward(0.005f);
 
         // Debug.Log($"Episode time : {episodeTime}");
 
@@ -104,8 +116,8 @@ public class RobotController : Agent
             EndEpisode();
         }
 
-        float motorTorque = actions.ContinuousActions[0] * 200f;
-        float steeringAngle = actions.ContinuousActions[1] * 30f;
+        float motorTorque = actions.ContinuousActions[0] * 300f;
+        float steeringAngle = actions.ContinuousActions[1] * 45f;
 
         // Debug.Log($"motorTorque: {motorTorque}, steeringAngle: {steeringAngle}");
         ApplySteering(steeringAngle);
@@ -119,15 +131,13 @@ public class RobotController : Agent
 
     private void HandleTrackRewards(float motorTorque, float steeringAngle)
     {
-        // Reward for moving forward on the road
         float speed = Vector3.Dot(transform.forward, GetComponent<Rigidbody>().linearVelocity);
-        Debug.Log($"Speed: {speed}");
+        Debug.Log($"Speed: {speed}, Motor torque: {motorTorque}, Steering angle: {steeringAngle}");
+
+        // Reward/Penalty for moving direction
         if (speed > 0f)
         {
-            if (speed > 0.5f)
-                AddReward(0.1f); // Reward for moving forward
-            else
-                AddReward(-0.1f);
+            AddReward(speed > 1.5f ? (speed < 5.5f ? 0.1f : -0.1f) : -0.1f);
         }
         else
         {
@@ -136,7 +146,7 @@ public class RobotController : Agent
             EndEpisode();
         }
 
-        // Check for obstacles and avoid collisions
+        // Obstacle detection and avoidance
         var sensorReadings = GetSensorData();
         foreach (var sensorReading in sensorReadings)
         {
@@ -144,70 +154,44 @@ public class RobotController : Agent
             float distance = sensorReading.Value.Item1;
             string hitObject = sensorReading.Value.Item2;
 
-            if (hitObject.Contains("Cube"))
+            if (hitObject.Contains("Cube") && distance < 1f)
             {
-                if (distance < 1f)
-                {
-                    AddReward(-0.2f); // Penalty for hitting an obstacle
-                    Debug.Log("EndEpisode: obstacle hit");
-                    EndEpisode();
-                }
-                else if (sensorName == "Left3" || sensorName == "Right3")
-                {
-                    AddReward(0.025f * distance); // Bonus for avoiding obstacles
-                }
+                AddReward(-0.2f);
+                Debug.Log("EndEpisode: Obstacle hit");
+                EndEpisode();
             }
-
+            else if (sensorName == "Left3" || sensorName == "Right3")
+            {
+                AddReward(0.025f * distance); // Bonus for avoiding obstacles
+            }
         }
 
-        bool flat = false;
+        bool isTurningPointDetected = CheckForTurningPoint(sensorReadings);
+        bool onTrack = sensorReadings["ORS"].Item1 < 2f && sensorReadings["ORS"].Item1 > -2f && !isTurningPointDetected;
 
-        bool isTurningPointDetected =
-            sensorReadings["Front"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Left1"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Left2"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Right1"].Item2.StartsWith("MT_Turn") ||
-            sensorReadings["Right2"].Item2.StartsWith("MT_Turn");
-
-        Debug.Log($"Motor torque : {motorTorque}, steering angle: {steeringAngle}");
-        if (sensorReadings["ORS"].Item1 < 2f && sensorReadings["ORS"].Item1 > -2f && !isTurningPointDetected)
+        if (onTrack)
         {
-            if(speed <= 3f)
-                AddReward(0.1f);
-            else
-                AddReward(-0.1f);
-                
-            if (motorTorque <= 12f && motorTorque >= 3f)
-            {
-                AddReward(0.8f);
-                Debug.Log("Reward 0.8 added");
-            }
-            else
-            {
-                AddReward(-0.1f);
-            }
+            AddReward(speed <= 3.5f ? 0.1f : -0.1f);
 
-            bool cpInfront = sensorReadings["Front"].Item2.StartsWith("CP") ||
-                        sensorReadings["Right2"].Item2.StartsWith("CP") ||
-                        sensorReadings["Left1"].Item2.StartsWith("CP");
-            
-            if(cpInfront && Mathf.Abs(steeringAngle) > 10f)
+            if (Mathf.Abs(steeringAngle) > 10f && CheckForCheckpointInFront(sensorReadings))
                 AddReward(-1f);
-
-            flat = true;
         }
 
+        if (sensorReadings["ORS"].Item1 < -2f)
+        {
+            if (motorTorque > 150f)
+                AddReward(20f);
+            else
+            {
+                AddReward(-0.5f);
+            }
 
-
-
+            // if(steeringAngle < -15f) //Remove after training
+            //     AddReward(-1f);
+        }
 
         if (isTurningPointDetected)
         {
-            if (motorTorque <= 3f)
-                AddReward(1f);
-
-
-
             bool leftEdge = (sensorReadings["Left3"].Item2.StartsWith("ED") || sensorReadings["Left3"].Item2.StartsWith("Plane")) &&
                         (sensorReadings["Left2"].Item2.StartsWith("ED") || sensorReadings["Left2"].Item2.StartsWith("Plane")) &&
                         (sensorReadings["Left1"].Item2.StartsWith("ED") || sensorReadings["Left1"].Item2.StartsWith("Plane")) &&
@@ -220,7 +204,7 @@ public class RobotController : Agent
 
             if (leftEdge && !rightEdge)
             {
-                if (Mathf.Abs(steeringAngle) > 5f)
+                if (Mathf.Abs(steeringAngle) > 20f)
                     AddReward(0.1f * steeringAngle);
                 else
                 {
@@ -231,7 +215,7 @@ public class RobotController : Agent
             }
             else if (rightEdge && !leftEdge)
             {
-                if (Mathf.Abs(steeringAngle) < -5f)
+                if (Mathf.Abs(steeringAngle) < -20f)
                     AddReward(0.1f * steeringAngle);
                 else
                 {
@@ -239,73 +223,110 @@ public class RobotController : Agent
                     Debug.Log("Rightedge detected angle not correct");
                 }
             }
-
+            // else
+            // {
+            //     if (currentSteerAngle == -steeringAngle)
+            //         AddReward(-0.5f);
+            // }
         }
-        else
+
+        HandleEdgeDetection(sensorReadings, steeringAngle, motorTorque);
+        HandleCheckpointRewards(sensorReadings);
+        HandleFinalCheckpoint();
+
+        if (IsOutOfTrack())
         {
-            if (currentSteerAngle == -steeringAngle)
-                AddReward(-0.5f);
+            AddReward(-10f);
+            Debug.Log("EndEpisode: Out of track");
+            EndEpisode();
         }
+    }
 
-        // Debug.Log($"Left3 distance : {sensorReadings["Left3"].Item1}, object : {sensorReadings["Left3"].Item2}");
-        if (sensorReadings["Left3"].Item2.StartsWith("ED") && (sensorReadings["Left3"].Item1 < 2.0f))
+    private bool CheckForTurningPoint(Dictionary<string, (float, string)> sensorReadings)
+    {
+        return sensorReadings["Front"].Item2.StartsWith("MT_Turn") ||
+               sensorReadings["Left1"].Item2.StartsWith("MT_Turn") ||
+               sensorReadings["Left2"].Item2.StartsWith("MT_Turn") ||
+               sensorReadings["Right1"].Item2.StartsWith("MT_Turn") ||
+               sensorReadings["Right2"].Item2.StartsWith("MT_Turn");
+    }
+
+    private bool CheckForCheckpointInFront(Dictionary<string, (float, string)> sensorReadings)
+    {
+        return sensorReadings["Front"].Item2.StartsWith("CP") ||
+               sensorReadings["Right2"].Item2.StartsWith("CP") ||
+               sensorReadings["Left1"].Item2.StartsWith("CP");
+    }
+
+    private void HandleEdgeDetection(Dictionary<string, (float, string)> sensorReadings, float steeringAngle, float motorTorque)
+    {
+        bool leftOverEdge = (sensorReadings["Left1"].Item2.StartsWith("None") &&
+                                sensorReadings["Left2"].Item2.StartsWith("None") &&
+                                sensorReadings["Left3"].Item2.StartsWith("None") &&
+                                sensorReadings["Right1"].Item2.StartsWith("MT_Road") &&
+                                sensorReadings["Right2"].Item2.StartsWith("MT_Road") &&
+                                sensorReadings["Right3"].Item2.StartsWith("MT_Road") &&
+                                (sensorReadings["Front"].Item2.StartsWith("MT_Road") || sensorReadings["Front"].Item2.StartsWith("ED")));
+        
+        bool rightOverEdge = (sensorReadings["Right1"].Item2.StartsWith("None") &&
+                                sensorReadings["Right2"].Item2.StartsWith("None") &&
+                                sensorReadings["Right3"].Item2.StartsWith("None") &&
+                                sensorReadings["Left1"].Item2.StartsWith("MT_Road") &&
+                                sensorReadings["Left2"].Item2.StartsWith("MT_Road") &&
+                                sensorReadings["Left3"].Item2.StartsWith("MT_Road") &&
+                                sensorReadings["Front"].Item2.StartsWith("MT_Road"));
+
+
+        bool leftEdgeDetected = (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Left3"].Item1 < 2.5f) || leftOverEdge;
+
+
+        bool rightEdgeDetected = (sensorReadings["Right3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item1 < 2.5f) || rightOverEdge;
+                                
+
+        if (leftEdgeDetected || rightEdgeDetected)
         {
-            // Debug.Log($"Left3 distance inside : {sensorReadings["Left3"].Item1}");
-            AddReward(-0.2f);
+            AddReward(-2f);
+
+            //Remove after training
+            // if (leftOverEdge || rightOverEdge)
+            // {
+            //     EndEpisode();
+            // }
+
         }
 
-        // Debug.Log($"Right3 distance : {sensorReadings["Right3"].Item1}, object : {sensorReadings["Right3"].Item2}");
-        if (sensorReadings["Right3"].Item2.StartsWith("ED") && (sensorReadings["Right3"].Item1 < 2.0f))
+        float deviation = sensorReadings["Left3"].Item1 - sensorReadings["Right3"].Item1;
+        if (Mathf.Abs(deviation) < 0.5f && sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED"))
         {
-            // Debug.Log($"Right3 distance inside : {sensorReadings["Right3"].Item1}");
-            AddReward(-0.2f);
-        }
-
-        if (sensorReadings["Left3"].Item2.StartsWith("ED") && sensorReadings["Right3"].Item2.StartsWith("ED") && !isTurningPointDetected)
-        {
-            AddReward(0.05f);
-            float deviation = sensorReadings["Left3"].Item1 - sensorReadings["Right3"].Item1;
-            if (Mathf.Abs(deviation) < 0.5f)
-                AddReward(0.1f);
+            AddReward(0.0001f);
         }
 
 
-        // Check if the robot passed a checkpoint
+    }
+
+    private void HandleCheckpointRewards(Dictionary<string, (float, string)> sensorReadings)
+    {
         for (int i = 1; i <= 22; i++)
         {
             string checkpointName = "CP" + i;
             if (CheckForCheckpointPassed(checkpointName))
             {
-                AddReward(0.2f * i); // Reward for passing a checkpoint
+                AddReward(0.2f * i);
                 break;
             }
         }
+    }
 
-        // Final reward for stopping after passing CP22 without falling off the track
+    private void HandleFinalCheckpoint()
+    {
         if (HasPassedFinalCheckpoint() && IsStopped())
         {
-            AddReward(1f); // Final bonus for stopping after passing CP22
-
-            Debug.Log("EndEpisode: successfully completed");
+            AddReward(1f);
+            Debug.Log("EndEpisode: Successfully completed");
             EndEpisode();
-
-        }
-
-        // Check if the robot has fallen off the track
-        if (IsOutOfTrack())
-        {
-            AddReward(-1f); // Penalty for going off track
-            if (flat)
-                AddReward(-0.5f);
-
-            if (isTurningPointDetected)
-                AddReward(-1f);
-
-            Debug.Log("EndEpisode: out of track");
-            EndEpisode(); // End the episode if out of the track
-            // Debug.Log("Called end episode");
         }
     }
+
 
     private bool IsOutOfTrack()
     {
@@ -362,17 +383,32 @@ public class RobotController : Agent
     public override void CollectObservations(VectorSensor sensor)
     {
         var sensorReadings = GetSensorData();
+        float speed = Vector3.Dot(transform.forward, GetComponent<Rigidbody>().linearVelocity);
         int frontItemId = GetHitItemId(sensorReadings["Front"].Item2);
         sensor.AddObservation(frontItemId);
         sensor.AddObservation(sensorReadings["Front"].Item1);
+        int left1ItemId = GetHitItemId(sensorReadings["Left1"].Item2);
+        sensor.AddObservation(left1ItemId);
         sensor.AddObservation(sensorReadings["Left1"].Item1);
+        int Left2ItemId = GetHitItemId(sensorReadings["Left2"].Item2);
+        sensor.AddObservation(Left2ItemId);
         sensor.AddObservation(sensorReadings["Left2"].Item1);
+        int Left3ItemId = GetHitItemId(sensorReadings["Left3"].Item2);
+        sensor.AddObservation(Left3ItemId);
         sensor.AddObservation(sensorReadings["Left3"].Item1);
+        int Right1ItemId = GetHitItemId(sensorReadings["Right1"].Item2);
+        sensor.AddObservation(Right1ItemId);
         sensor.AddObservation(sensorReadings["Right1"].Item1);
+        int Right2ItemId = GetHitItemId(sensorReadings["Right2"].Item2);
+        sensor.AddObservation(Right2ItemId);
         sensor.AddObservation(sensorReadings["Right2"].Item1);
+        int Right3ItemId = GetHitItemId(sensorReadings["Right3"].Item2);
+        sensor.AddObservation(Right3ItemId);
         sensor.AddObservation(sensorReadings["Right3"].Item1);
         sensor.AddObservation(sensorReadings["ORS"].Item1);
         sensor.AddObservation(sensorReadings["ORSZ"].Item1);
+        sensor.AddObservation(speed);
+
     }
 
     private int GetHitItemId(string hitName)
